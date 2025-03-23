@@ -1,9 +1,128 @@
+<#
+.SYNOPSIS
+    Applies DISA STIG Group Policy Objects (GPOs) and related configurations from local or remote packages.
+
+.DESCRIPTION
+    This script automates the deployment of STIG-compliant GPOs using LGPO.exe. It supports retrieving GPO packages from 
+    the public DoD STIG site or from local or network sources. It handles copying ADMX/ADML templates, executing LGPO.exe 
+    to apply each policy, and optionally applying application-specific STIG templates.
+
+    The script also supports delta GPO packages that are applied after the baseline STIGs. These GPOs are sorted by their 
+    full path to allow for controlled application order. In the example below, the STIGs in C:\STIGs\Delta\2\ would be 
+    applied after those in C:\STIGs\Delta\1\:
+
+        - C:\STIGs\Delta\1\GPOs\Complicated_Stuff.GPO
+        - C:\STIGs\Delta\2\GPOs\Important_Stuff.GPO
+
+    The script also performs additional Windows hardening, including DEP enforcement, 
+    disabling legacy features (e.g., PowerShell v2, Secondary Logon), and applying registry-based mitigations.
+
+.PARAMETER LocalPkg
+    If specified, uses a local or network ZIP package of STIG GPOs instead of downloading from the DoD site.
+
+.PARAMETER LocalZipPath
+    The full path to the STIG ZIP package. Required when -LocalPkg is specified.
+
+.PARAMETER LocalLGPO
+    If specified, uses a local or network LGPO.exe executable instead of downloading it from Microsoft.
+
+.PARAMETER LGPOPath
+    The full path to a local LGPO.exe executable. Required if -LocalLGPO is used and LGPO.exe is not present in System32.
+
+.PARAMETER ApplyAppSTIGs
+    One or more application-specific STIG templates to apply. Options include:
+        - Adobe Acrobat Pro DC
+        - Adobe Acrobat Reader DC
+        - Google Chrome
+        - Mozilla Firefox
+        - Office 2019-M365 Apps
+        - Office System 2013
+        - Office System 2016
+
+.PARAMETER DeltaGPO
+    If specified, applies delta GPOs from a separate folder to extend or override baseline STIG settings.
+
+.PARAMETER DeltaPath
+    The root folder that contains at least one subfolder named 'GPOs'. Required if -DeltaGPO is used.
+
+.PARAMETER TestGPOInstall
+    If specified, runs each LGPO command in test mode (using `/help` instead of applying policies).
+
+.EXAMPLE
+    .\Apply-STIGs.ps1 -LocalPkg -LocalZipPath "C:\STIGs\U_STIG_GPO_Package.zip"
+
+.EXAMPLE
+    .\Apply-STIGs.ps1 -ApplyAppSTIGs "Google Chrome", "Office 2019-M365 Apps"
+
+.EXAMPLE
+    .\Apply-STIGs.ps1 -LocalLGPO -LGPOPath "C:\Tools\LGPO.exe" -DeltaGPO -DeltaPath "C:\STIGs\Deltas"
+
+.NOTES
+    Author: SSF
+    Original Scource: https://github.com/AVDClientKiosk
+    Last Updated: 3/22/2025
+    Tested On: Windows 11
+
+.LINK
+    https://public.cyber.mil/stigs/downloads
+    https://www.microsoft.com/en-us/download/details.aspx?id=55319
+#>
+
+
+
+
 [CmdletBinding(SupportsShouldProcess = $true)]
 param (
+    # If this switch is specified, the function uses a local or network STIG package instead of parsing the DoD STIG website.
+    [Parameter(Mandatory = $false)]
+    [switch]$LocalPkg,
+
+    # LocalPath is required when using -UseLocalPackage to point to the local STIG Zip package.
+    [Parameter(Mandatory = $false)]
+    [ValidateScript({If ($_ -notmatch "\.zip$") {Throw "FilePath must end in .zip"} $true })]
+    [string]$LocalZipPath,
+
+    # If this switch is specified, the function uses a local LGPO executable.
+    [Parameter(Mandatory = $false)]
+    [switch]$LocalLGPO,
+
+    # LocalPath is required unless the file is in System32 when using -LocalLGPO to point to the local LGPO executable.
+    [Parameter(Mandatory = $false)]
+    [ValidateScript({If ($_ -notmatch "\.exe$") {Throw "LGPO must be an executable file"} $true })]
+    [string]$LGPOPath,
 
     [Parameter(Mandatory = $false)]
-    [Hashtable] $DynParameters
-)
+    [ValidateSet(
+        "Adobe Acrobat Pro DC",
+        "Adobe Acrobat Reader DC",
+        "Google Chrome",
+        "Mozilla Firefox",
+        "Office 2019-M365 Apps",
+        "Office System 2013",
+        "Office System 2016"
+    )]
+    [string[]]$ApplyAppSTIGs,
+
+    # If this switch is specified, delta GPOs in the corect format can be applied.
+    [Parameter(Mandatory = $false)]
+    [switch]$DeltaGPO,
+
+    # DeltapPath is required when using -DeltaGPO.
+    [Parameter(Mandatory = $false)]
+    [ValidateScript({
+    if (-not (Test-Path $_)) {throw "Path does not exist: $_"}
+
+    $hasGPOFolder = Get-ChildItem -Path $_ -Recurse -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'GPOs' }
+    if (-not $hasGPOFolder) {throw "Path must contain at least one folder named 'GPOs'."}
+    return $true
+    })]
+    [string]$DeltaPath,
+
+    # If this switch is specified, the function uses a local or network STIG package instead of parsing the DoD STIG website.
+    [Parameter(Mandatory = $false)]
+    [switch]$TestGPOInstall
+
+    )
 
 #region Initialization
 
@@ -11,24 +130,30 @@ $Script:FullName = $MyInvocation.MyCommand.Path
 $Script:File = $MyInvocation.MyCommand.Name
 $Script:Name=[System.IO.Path]::GetFileNameWithoutExtension($Script:File)
 
-$Script:Args = $null
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
+# Check if running in a 32-bit process on a 64-bit OS
+If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSystem) {
     Try {
-
-        foreach($k in $MyInvocation.BoundParameters.keys)
-        {
-            switch($MyInvocation.BoundParameters[$k].GetType().Name)
-            {
-                "SwitchParameter" {if($MyInvocation.BoundParameters[$k].IsPresent) { $Script:Args += "-$k " } }
-                "String"          { $Script:Args += "-$k `"$($MyInvocation.BoundParameters[$k])`" " }
-                "Int32"           { $Script:Args += "-$k $($MyInvocation.BoundParameters[$k]) " }
-                "Boolean"         { $Script:Args += "-$k `$$($MyInvocation.BoundParameters[$k]) " }
+        # Convert bound parameters into a PowerShell-compatible argument list
+        $Script:Args = @()
+        foreach ($k in $MyInvocation.BoundParameters.Keys) {
+            $paramValue = $MyInvocation.BoundParameters[$k]
+            switch ($paramValue.GetType().Name) {
+                "SwitchParameter" { if ($paramValue.IsPresent) { $Script:Args += "-$k" } }
+                "String"          { $Script:Args += "-$k `"$paramValue`"" }
+                "Int32"           { $Script:Args += "-$k $paramValue" }
+                "Boolean"         { $Script:Args += "-$k `$$paramValue" }
             }
         }
-        If ($Script:Args) {
-            Start-Process -FilePath "$env:WINDIR\SysNative\WindowsPowershell\v1.0\PowerShell.exe" -ArgumentList "-File `"$($Script:FullName)`" $($Script:Args)" -Wait -NoNewWindow
-        } Else {
-            Start-Process -FilePath "$env:WINDIR\SysNative\WindowsPowershell\v1.0\PowerShell.exe" -ArgumentList "-File `"$($Script:FullName)`"" -Wait -NoNewWindow
+
+        # Relaunch in 64-bit PowerShell
+        $PowerShell64 = "$env:WINDIR\SysNative\WindowsPowerShell\v1.0\powershell.exe"
+        $ScriptArgsString = $Script:Args -Join " "
+
+        If ($ScriptArgsString) {
+            Start-Process -FilePath $PowerShell64 -ArgumentList "-File `"$($Script:FullName)`" $ScriptArgsString" -Wait -NoNewWindow
+        } 
+        Else {
+            Start-Process -FilePath $PowerShell64 -ArgumentList "-File `"$($Script:FullName)`"" -Wait -NoNewWindow
         }
     }
     Catch {
@@ -37,93 +162,115 @@ If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
     Exit
 }
 
-[String]$Script:LogDir = "$($env:SystemRoot)\Logs\Configuration"
-If (-not(Test-Path -Path $Script:LogDir)) {
-    New-Item -Path "$($env:SystemRoot)\Logs" -Name Configuration -ItemType Dir -Force
-}
-[string]$Script:LogName = "$($Script:Name).log"
-If (Test-Path "$Script:LogDir\$Script:LogName") {
-    Remove-Item "$Script:LogDir\$Script:LogName" -Force
-}
-Start-Transcript -Path "$Script:LogDir\$Script:LogName"
-#endregion
+# Validate the Local variables
+$LGPOInstaled = Test-Path -Path "$env:SystemRoot\System32\LGPO.exe"
+If ($LocalPkg.IsPresent) {If (-not $LocalZipPath) {Throw "ERROR: -LocalZipPath is required when using -LocalPkg."}}
+If ($LocalLGPO.IsPresent) {If ((!($LGPOPath)) -and (!($LGPOInstaled))){Throw "ERROR: -LGPOPath is required when using -LocalLGPO."}}
+
+# Start Transcript Logging
+$Script:LogDir = "$env:SystemRoot\Logs\Configuration"
+If (-not (Test-Path -Path $Script:LogDir)) {New-Item -Path $Script:LogDir -ItemType Directory -Force}
+$Script:LogName = "$Script:Name.log"
+$Script:LogFilePath = "$Script:LogDir\$Script:LogName"
+If (Test-Path $Script:LogFilePath) {Remove-Item $Script:LogFilePath -Force}
+Start-Transcript -Path $Script:LogFilePath
 
 #region Functions
 
 Function Set-BluetoothRadioStatus {
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [ValidateSet('Off', 'On')]
         [string]$BluetoothStatus
     )
-    If ((Get-Service bthserv).Status -eq 'Stopped') { Start-Service bthserv }
+
+    # Ensure the Bluetooth service is running
+    If ((Get-Service -Name 'bthserv').Status -eq 'Stopped') {Start-Service -Name 'bthserv'}
+
     Try {
+        # Add required .NET types for working with WinRT
         Add-Type -AssemblyName System.Runtime.WindowsRuntime
-        $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
-        Function Await($WinRtTask, $ResultType) {
+
+        # Get the generic AsTask<T> method
+        $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() |
+            Where-Object {
+                $_.Name -eq 'AsTask' -and
+                $_.GetParameters().Count -eq 1 -and
+                $_.GetParameters()[0].ParameterType.Name -like 'IAsyncOperation`1'
+            })[0]
+
+        # Helper function to await a WinRT async method and return result
+        function Await ($WinRtTask, $ResultType) {
             $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
             $netTask = $asTask.Invoke($null, @($WinRtTask))
             $netTask.Wait(-1) | Out-Null
-            $netTask.Result
+            return $netTask.Result
         }
-        [Windows.Devices.Radios.Radio,Windows.System.Devices,ContentType=WindowsRuntime] | Out-Null
-        [Windows.Devices.Radios.RadioAccessStatus,Windows.System.Devices,ContentType=WindowsRuntime] | Out-Null
+
+        # Load necessary Windows Runtime types
+        [Windows.Devices.Radios.Radio, Windows.System.Devices, ContentType = WindowsRuntime] | Out-Null
+        [Windows.Devices.Radios.RadioAccessStatus, Windows.System.Devices, ContentType = WindowsRuntime] | Out-Null
+        [Windows.Devices.Radios.RadioState, Windows.System.Devices, ContentType = WindowsRuntime] | Out-Null
+
+        # Request access and get list of radios
         Await ([Windows.Devices.Radios.Radio]::RequestAccessAsync()) ([Windows.Devices.Radios.RadioAccessStatus]) | Out-Null
         $radios = Await ([Windows.Devices.Radios.Radio]::GetRadiosAsync()) ([System.Collections.Generic.IReadOnlyList[Windows.Devices.Radios.Radio]])
-        If ($radios) {
-            $bluetooth = $radios | Where-Object { $_.Kind -eq 'Bluetooth' }
-        }
+
+        # Locate the Bluetooth radio
+        $bluetooth = $radios | Where-Object { $_.Kind -eq 'Bluetooth' }
+
+        # If found, set its state
         If ($bluetooth) {
-            [Windows.Devices.Radios.RadioState,Windows.System.Devices,ContentType=WindowsRuntime] | Out-Null
             Await ($bluetooth.SetStateAsync($BluetoothStatus)) ([Windows.Devices.Radios.RadioAccessStatus]) | Out-Null
         }
     } Catch {
-        Write-Warning "Set-BluetoothStatus function errored."
+        Write-Warning "Set-BluetoothRadioStatus function encountered an error: $_"
     }
 }
 
-Function Get-InternetUrl {
+Function Get-STIGLink {
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [uri]$Url,
-        [Parameter(Mandatory = $true, Position = 1)]
-        [string]$searchstring
+        
+        # Default DoD STIG GPO URL
+        [Parameter(Mandatory = $false)]
+        [string]$Url = 'https://public.cyber.mil/stigs/gpo',
+
+        [Parameter(Mandatory = $false)]
+        [string]$searchstring = '*U_STIG_GPO_Package*'
     )
+
     Begin {
-        ## Get the name of this function and write header
-        [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
-        Write-Verbose "${CmdletName}: Starting ${CmdletName} with the following parameters: $PSBoundParameters"
+        # Capture the function name for consistent logging
+        [string]$CmdletName = $PSCmdlet.MyInvocation.MyCommand.Name
+        Write-Verbose "$($CmdletName): Starting with parameters: $PSBoundParameters"
     }
+
     Process {
+    try {
+                Write-Verbose "$($CmdletName): Checking DoD STIG site: $Url"
+                
+                $STIGLink = Invoke-WebRequest -Uri $Url |
+                            Select-Object -ExpandProperty Links |
+                            Where-Object { $_.href -like "*U_STIG_GPO_Package*" } |
+                            Select-Object -ExpandProperty href
 
-        Try {
-            Write-Verbose -message "${CmdletName}: Now extracting download URL from '$Url'."
-            $HTML = Invoke-WebRequest -Uri $Url -UseBasicParsing
-            $Links = $HTML.Links
-            $ahref = $null
-            $ahref=@()
-            $ahref = ($Links | Where-Object {$_.href -like "*$searchstring*"}).href
-            If ($ahref.count -eq 0 -or $null -eq $ahref) {
-                $ahref = ($Links | Where-Object {$_.OuterHTML -like "*$searchstring*"}).href
-            }
-            If ($ahref.Count -eq 1) {
-                Write-Verbose -Message "${CmdletName}: Download URL = '$ahref'"
-                $ahref
+                # Return the single link if exactly one match; if multiple, return the first
+                if ($STIGLink.Count -eq 1) {
+                    Write-Verbose "$($CmdletName): Found link: $STIGLink"
+                    return $STIGLink
+                }
+                elseif ($STIGLink.Count -gt 1) {
+                    Write-Verbose "$($CmdletName): Multiple matches found. Returning first: $($STIGLink[0])"
+                    return $STIGLink[0]
+                }
+                else {
+                    Write-Error "$($CmdletName): Could not find a link matching '$SearchString' on $Url"
+                }
+            } catch {Write-Error "$($CmdletName): Error retrieving STIG settings. $_"}
 
-            }
-            Elseif ($ahref.Count -gt 1) {
-                Write-Verbose -Message "${CmdletName}: Download URL = '$($ahref[0])'"
-                $ahref[0]
-            }
-        }
-        Catch {
-            Write-Error "${CmdletName}: Error Downloading HTML and determining link for download."
-        }
-    }
-    End {
-        Write-Verbose -Message "${CmdletName}: Ending ${CmdletName}"
+        End {Write-Verbose "$($CmdletName): Completed."}
     }
 }
 
@@ -132,200 +279,459 @@ Function Get-InternetFile {
     Param (
         [Parameter(Mandatory = $true, Position = 0)]
         [uri]$Url,
+
         [Parameter(Mandatory = $true, Position = 1)]
         [string]$OutputDirectory,
+
         [Parameter(Mandatory = $false, Position = 2)]
-        [string]$OutputFileName
+        [string]$OutputFileName,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$ForceDownload,
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$ValidExtensions = @(".zip", ".msi", ".exe", ".cab", ".tar", ".gz", ".ps1")
     )
 
     Begin {
-        $ProgressPreference = 'SilentlyContinue'
-        ## Get the name of this function and write header
-        [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
-        Write-Verbose "Starting ${CmdletName} with the following parameters: $PSBoundParameters"
+        $CmdletName = $PSCmdlet.MyInvocation.MyCommand.Name
+        Write-Verbose "$($CmdletName): Starting with parameters: $PSBoundParameters"
     }
+
     Process {
+        Try {
+            # Ensure output directory exists
+            If (-not (Test-Path $OutputDirectory)) {
+                Write-Verbose "$($CmdletName): Creating output directory: $OutputDirectory"
+                New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
+            }
 
-        $start_time = Get-Date
+            # Extract file name from URL if not provided
+            If (-not $OutputFileName) {
+                $OutputFileName = [System.IO.Path]::GetFileName($Url.AbsolutePath)
+                Write-Verbose "$($CmdletName): Extracted file name from URL: $OutputFileName"
+            }
 
-        If (!$OutputFileName) {
-            Write-Verbose "${CmdletName}: No OutputFileName specified. Trying to get file name from URL."
-            If ((split-path -path $Url -leaf).Contains('.')) {
+            # Define full output path
+            $OutputFile = Join-Path -Path $OutputDirectory -ChildPath $OutputFileName
 
-                $OutputFileName = split-path -path $url -leaf
-                Write-Verbose "${CmdletName}: Url contains file name - '$OutputFileName'."
+            # Extract file extension from the URL
+            $FileExtension = [System.IO.Path]::GetExtension($OutputFileName)
+
+            # Validate the file extension unless ForceDownload is enabled
+            If (-not $ForceDownload) {
+                If ($FileExtension -eq "" -or $ValidExtensions -notcontains $FileExtension.ToLower()) {
+                    Throw "$($CmdletName): URL does not contain a valid file extension! (Found: '$FileExtension'). Use -ForceDownload to bypass."
+                }
+            }
+
+            # Download the file
+            Write-Verbose "$($CmdletName): Downloading $Url to $OutputFile"
+            Invoke-WebRequest -Uri $Url -OutFile $OutputFile
+
+            # Verify successful download
+            If (Test-Path $OutputFile) {
+                $FileSize = (Get-Item $OutputFile).Length / 1MB
+                Write-Verbose "$($CmdletName): Download successful. File size: $FileSize MB"
+                Return $OutputFile
             }
             Else {
-                Write-Verbose "${CmdletName}: Url does not contain file name. Trying 'Location' Response Header."
-                $request = [System.Net.WebRequest]::Create($url)
-                $request.AllowAutoRedirect=$false
-                $response=$request.GetResponse()
-                $Location = $response.GetResponseHeader("Location")
-                If ($Location) {
-                    $OutputFileName = [System.IO.Path]::GetFileName($Location)
-                    Write-Verbose "${CmdletName}: File Name from 'Location' Response Header is '$OutputFileName'."
+                Throw "$($CmdletName): Download failed—file not found after download attempt."
+            }
+        }
+        Catch {
+            Write-Error "$($CmdletName): Error downloading file: $_"
+            Return $null
+        }
+    }
+
+    End {
+        Write-Verbose "$($CmdletName): Completed."
+    }
+}
+
+Function Get-STIGOS {
+    [CmdletBinding()]
+    Param ()
+
+    # Get OS Information
+    $OSInfo = Get-CimInstance Win32_OperatingSystem
+    $STIG_OS = $null
+
+    Write-Verbose "Checking OS: $($OSInfo.Caption) (Version: $($OSInfo.Version), Build: $($OSInfo.BuildNumber))"
+
+    # Detect Windows 10 or Windows 11
+    If ($OSInfo.ProductType -eq 1 -and $OSInfo.Version -match "^10\.") {
+        If ($OSInfo.BuildNumber -ge 22000) {
+            $STIG_OS = "Windows 11"
+        }
+        Else {
+            $STIG_OS = "Windows 10"
+        }
+    }
+
+    # Detect Windows Server Versions
+    ElseIf ($OSInfo.ProductType -gt 1) {
+        If ($OSInfo.Caption -match "2022") {
+            $STIG_OS = "WinSvr 2022"
+        }
+        ElseIf ($OSInfo.Caption -match "2016") {
+            $STIG_OS = "WinSvr 2016"
+        }
+        ElseIf ($OSInfo.Caption -match "2012") {
+            $STIG_OS = "WinSvr 2012 R2"
+        }
+    }
+
+    # If no match is found, return Unknown OS
+    If (-not $STIG_OS) {
+        $STIG_OS = "Unknown OS ($($OSInfo.Caption))"
+        Write-Error "ERROR: Unknown OS detected: $OSInfo.Caption"
+    }
+
+    Write-Verbose "OS Identified: $STIG_OS"
+    Return $STIG_OS
+}
+
+Function Download-STIGs {
+    [CmdletBinding()]
+    Param (
+        # Determines the source type
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = "Internet")]
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = "Local")]
+        [ValidateSet("Internet", "Local")]
+        [string]$Source,
+
+        # File path to STIG zip file on local or network storage (Only available when SourceType = "Internet")
+        [Parameter(Mandatory = $true, ParameterSetName = "Internet")]
+        [string]$DownloadURL,
+
+         # File path to STIG zip file on local or network storage (Only available when SourceType = "Local")
+        [Parameter(Mandatory = $true, ParameterSetName = "Local")]
+        [ValidateScript({If ($_ -notmatch "\.zip$") {Throw "FilePath must end in .zip"} $true })]
+        [string]$ZipPath,
+
+        # Directory for temporary storage
+        [Parameter(Mandatory = $false)]
+        [string]$TempDir = "$env:TEMP",
+
+        # Output directory for extracted GPOs
+        [Parameter(Mandatory = $false)]
+        [string]$OutputDir = "$env:TEMP\GPOs"
+    )
+
+    Begin {
+        [string]$CmdletName = $PSCmdlet.MyInvocation.MyCommand.Name
+        Write-Verbose "$($CmdletName): Starting with parameters: $PSBoundParameters"
+    }
+
+    Process {
+        Switch ($Source) {
+            "Internet" {
+                If (-not $DownloadURL) {
+                    Write-Error "$($CmdletName): ERROR: No URL provided for STIG download!"
+                    Return $false
                 }
-                Else {
-                    Write-Verbose "${CmdletName}: No 'Location' Response Header returned. Trying 'Content-Disposition' Response Header."
-                    $result = Invoke-WebRequest -Method GET -Uri $Url -UseBasicParsing
-                    $contentDisposition = $result.Headers.'Content-Disposition'
-                    If ($contentDisposition) {
-                        $OutputFileName = $contentDisposition.Split("=")[1].Replace("`"","")
-                        Write-Verbose "${CmdletName}: File Name from 'Content-Disposition' Response Header is '$OutputFileName'."
-                    }
+
+                Write-Verbose "$($CmdletName): Downloading STIGs from: $DownloadURL"
+                $STIGZipPath = Get-InternetFile -Url $DownloadURL -OutputDirectory $TempDir
+                Write-Verbose "$($CmdletName): Downloaded STIGs from: $DownloadURL"
+
+                # Ensure the file was downloaded successfully
+                If (-not (Test-Path $STIGZipPath)) {
+                    Write-Error "$($CmdletName): ERROR: Download failed or file not found: $STIGZipPath"
+                    Return $false
                 }
+            }
+
+            "Local" {
+                If (-not $ZipPath) {
+                    Write-Error "$($CmdletName): ERROR: No file path provided for STIG ZIP!"
+                    Return $false
+                }
+                If (-not (Test-Path $ZipPath)) {
+                    Write-Error "$($CmdletName): ERROR: STIG ZIP not found at: $ZipPath"
+                    Return $false
+                }
+
+                Copy-Item -Path $ZipPath -Destination $TempDir -Force
+                Write-Verbose "$($CmdletName): Copyed STIGs from: $ZipPath"
+                $STIGZipPath = Join-Path -Path $TempDir -ChildPath ([System.IO.Path]::GetFileName($ZipPath))
             }
         }
 
-        If ($OutputFileName) { 
-            $wc = New-Object System.Net.WebClient
-            $OutputFile = Join-Path $OutputDirectory $OutputFileName
-            Write-Verbose "${CmdletName}: Downloading file at '$url' to '$OutputFile'."
-            Try {
-                $wc.DownloadFile($url, $OutputFile)
-                $time = (Get-Date).Subtract($start_time).Seconds
-                
-                Write-Verbose "${CmdletName}: Time taken: '$time' seconds."
-                if (Test-Path -Path $outputfile) {
-                    $totalSize = (Get-Item $outputfile).Length / 1MB
-                    Write-Verbose "${CmdletName}: Download was successful. Final file size: '$totalsize' mb"
-                    Return $OutputFile
-                }
-            }
-            Catch {
-                Write-Error "${CmdletName}: Error downloading file. Please check url."
-                Return $Null
-            }
+        # Ensure the STIG ZIP exists before proceeding
+        If (-not (Test-Path $STIGZipPath)) {
+            Write-Error "$($CmdletName): ERROR: STIG ZIP missing after attempted download/copy: $STIGZipPath"
+            Return $false
         }
+        # Remove existing extracted GPOs
+        If (Test-Path $OutputDir) {
+            Write-Verbose "$($CmdletName): Removing existing GPO directory: $OutputDir"
+            Remove-Item -Path $OutputDir -Recurse -Force
+        }
+
+        # Extract the ZIP file
+        Expand-Archive -Path $STIGZipPath -DestinationPath $OutputDir -Force
+        Write-Verbose "$($CmdletName): Extracted STIG GPOs from $STIGZipPath"
+
+        # Cleanup: Remove the ZIP file after extraction
+        Write-Verbose "$($CmdletName): Removing ZIP file: $STIGZipPath"
+        Remove-Item -Path $STIGZipPath -Force -ErrorAction SilentlyContinue
+
+        # Verify extraction success
+        If (Test-Path $OutputDir) {
+            Write-Verbose "$($CmdletName): STIG GPOs successfully extracted to: $OutputDir"
+            Return $OutputDir
+            }
         Else {
-            Write-Error "${CmdletName}: No OutputFileName specified. Unable to download file."
-            Return $Null
+            Write-Error "$($CmdletName): ERROR: Extraction failed!"
+            Return $false
         }
     }
+}
+Function Apply-GPOBackups {
+    [CmdletBinding()]
+    Param (
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [string[]]$Folder,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$Test
+    )
+
+    Begin {
+        $CmdletName = $PSCmdlet.MyInvocation.MyCommand.Name
+        Write-Verbose "$($CmdletName): Starting GPO application for folders..."
+        $GPOFolders = @()
+    }
+
+    Process {
+        foreach ($path in $Folder) {
+            Write-Verbose " - $path"
+
+            $gpoFolder = Get-ChildItem -Recurse -Path $path -Filter 'GPOs' -Directory -ErrorAction SilentlyContinue | Sort-Object FullName
+            if ($gpoFolder) {
+                $GPOFolders += $gpoFolder.FullName
+            } else {
+                Write-Warning "$($CmdletName): No 'GPOs' folder found in '$path'. Skipping..."
+            }
+        }
+    }
+
     End {
-        Write-Verbose "Ending ${CmdletName}"
+        foreach ($gpoFolder in $GPOFolders) {
+            $command = "$env:SystemRoot\System32\lgpo.exe"
+            if ($Test.IsPresent) {
+                $output = & $command "/fake" 2>&1
+                Write-Output "TEST MODE: LGPO.exe $args $gpoFolder "
+            } else {
+                Write-Output "$($CmdletName): Implementing GPOs in $gpoFolder"
+                $ErrorActionPreference = 'SilentlyContinue'
+                $output = & cmd.exe /c $command /g "$gpoFolder" 2>&1
+                $ErrorActionPreference = 'SilentlyContinue'
+                ForEach($line in $output){Write-Output "   $line"}
+            }
+        }
+
+        Write-Verbose "$($CmdletName): Completed."
     }
 }
 
 #endregion
 
 #region Main
+$STIGdir = $null
+If ($LocalPkg.IsPresent) {
+    If (Test-Path $LocalZipPath){Write-Output "Using local STIG package: $LocalZipPath"}
+    Else {Throw "ERROR: LocalPath '$LocalZipPath' not found."}
+   
+    $STIGdir = Download-STIGs -Source Local -ZipPath $LocalZipPath
+}
+Else {
+    Write-Verbose "Downloading STIG package"
+    #downloading and use remote package
+    $Url = Get-STIGLink
+    $STIGdir = Download-STIGs -Source Internet -DownloadURL $Url
+}
 
 #Download LGPO and copy it to System32
-
-If (!(Test-Path -Path "$env:SystemRoot\System32\LGPO.exe")) {
-
+$fileLGPO = $null
+$outputDir = $null
+If (($LocalLGPO.IsPresent) -and ($LGPOPath)) {
+    
+    If (Test-Path $LGPOPath){Write-Output "Using local LGPO.exe from $LGPOPath"}
+    Else {Throw "ERROR: Local LGPO.exe '$LGPOPath' not found."}
+    $fileLGPO = $LGPOPath
+}
+Else {
+    Write-Output "Retrieving LGPO.exe package from Microsoft.com"
+    # Logic for downloading and using remote package
     $urlLGPO = 'https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FFA-9429-7E023E7DA8D8/LGPO.zip'
-    $outputDir = "$env:Temp\LGPO"
     $fileLGPODownload = Get-InternetFile -Url $urlLGPO -OutputDirectory $env:Temp
+    Write-Verbose "LGPO.exe downloaded from $urlLGPO to $env:Temp"
     $outputDir = "$env:Temp\LGPO"
     Expand-Archive -Path $fileLGPODownload -DestinationPath $outputDir
     Remove-Item $fileLGPODownload -Force
     $fileLGPO = (Get-ChildItem -Path $outputDir -file -Filter 'lgpo.exe' -Recurse)[0].FullName
-    Write-Output "Copying `"$fileLGPO`" to System32"
-    Copy-Item -Path $fileLGPO -Destination "$env:SystemRoot\System32" -Force
-    Remove-Item -Path $outputDir -Recurse -Force
-}
-#Download the STIG GPOs
-$uriSTIGs = 'https://public.cyber.mil/stigs/gpo'
-$uriGPODownload = Get-InternetUrl -Url $uriSTIGs -searchstring 'GPOs'
-Write-Output "Downloading STIG GPOs from `"$uriGPODownload`"."
-If ($uriGPODownload) {
-    $file = Get-InternetFile -url $uriGPODownload -OutputDirectory $env:TEMP
 }
 
-$OutputDir = "$env:Temp\GPOs"
-If (Test-Path -Path $OutputDir) {
-    Remove-Item $OutputDir -Recurse -Force
-}
-Expand-Archive -Path $file -DestinationPath $outputDir
-Remove-Item -Path $file -Force
-Write-Output "Copying ADMX and ADML files to local system."
+ Copy-Item -Path $fileLGPO -Destination "$env:SystemRoot\System32" -Force
+ Write-Output "Copied LGPO.exe to $env:SystemRoot\System32"
+ if($outputDir){Remove-Item -Path $outputDir -Recurse -Force}
 
-$null = Get-ChildItem -Path "$outputDir\ADMX Templates\Microsoft" -File -Recurse -Filter '*.admx' | ForEach-Object { Copy-Item -Path $_.FullName -Destination "$env:WINDIR\PolicyDefinitions\" -Force }
-$null = Get-ChildItem -Path "$outputDir\ADMX Templates\Microsoft" -Directory -Recurse | Where-Object {$_.Name -eq 'en-us'} | Get-ChildItem -File -recurse -filter '*.adml' | ForEach-Object { Copy-Item -Path $_.FullName -Destination "$env:WINDIR\PolicyDefinitions\en-us\" -Force }
 
-Write-Output "Getting List of Applicable GPO folders."
-$arrApplicableGPOs = Get-ChildItem -Path $outputDir | Where-Object {$_.Name -like 'DoD*Windows 10*' -or $_.Name -like 'DoD*Edge*' -or $_.Name -like 'DoD*Firewall*' -or $_.Name -like 'DoD*Internet Explorer*' -or $_.Name -like 'DoD*Defender Antivirus*'} 
-[array]$arrGPOFolders = $null
-ForEach ($folder in $arrApplicableGPOs.FullName) {
-    $gpoFolderPath = (Get-ChildItem -Path $folder -Filter 'GPOs' -Directory).FullName
-    $arrGPOFolders += $gpoFolderPath
-}
-ForEach ($gpoFolder in $arrGPOFolders) {
-    Write-Output "Running 'LGPO.exe /g `"$gpoFolder`"'"
-    $lgpo = Start-Process -FilePath "$env:SystemRoot\System32\lgpo.exe" -ArgumentList "/g `"$gpoFolder`"" -Wait -PassThru
-    Write-Output "'lgpo.exe' exited with code [$($lgpo.ExitCode)]."
-}
+#Microsoft ADMX and ADML files are copied into the PolicyDefinitions folder
+$A = Join-Path -Path $STIGdir -ChildPath "ADMX Templates\Microsoft"
 
-#Disable Windows PowerShell V2
-Write-Output "V-220728: Disabling the PowerShell V2."
-If ((Get-WindowsOptionalFeature -Online | Where-Object {$_.FeatureName -eq 'MicrosoftWindowsPowerShellV2Root'}).State -eq 'Enabled') {
-    Disable-WindowsOptionalFeature -Online -FeatureName MicrosoftWindowsPowerShellV2Root
-}
-
-#Disable Secondary Logon Service
-Write-Output "V-220732: Disabling the Secondary Logon Service."
-$Service = 'SecLogon'
-$Serviceobject = Get-Service | Where-Object {$_.Name -eq $Service}
-If ($Serviceobject) {
-    $StartType = $ServiceObject.StartType
-    If ($StartType -ne 'Disabled') {
-        start-process -FilePath "reg.exe" -ArgumentList "ADD HKLM\System\CurrentControlSet\Services\SecLogon /v Start /d 4 /T REG_DWORD /f" -PassThru -Wait
+# Copy all .admx files from Microsoft ADMX Templates
+$null = Get-ChildItem -Path $A -File -Recurse -Filter '*.admx' |
+    ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination "$env:WINDIR\PolicyDefinitions\" -Force
     }
-    If ($ServiceObject.Status -ne 'Stopped') {
-        Try {
-            Stop-Service $Service -Force
-        }
-        Catch {
+
+# Copy all .adml files from en-us subfolders under Microsoft ADMX Templates
+$null = Get-ChildItem -Path $A -Directory -Recurse |
+    Where-Object { $_.Name -eq 'en-us' } |
+    Get-ChildItem -File -Recurse -Filter '*.adml' |
+    ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination "$env:WINDIR\PolicyDefinitions\en-us\" -Force
+    }
+
+Write-Output "Copied Microsoft ADMX and ADML files to $env:WINDIR\PolicyDefinitions\."
+
+#Application ADMX and ADML files are copied into the PolicyDefinitions folder if -ApplyAppSTIGs is used
+if($ApplyAppSTIGs){
+    # Define PolicyDefinitions destination
+    $ADMXDest = "$env:WINDIR\PolicyDefinitions"
+    $ADMLDest = Join-Path -Path $ADMXDest -ChildPath "en-us"
+
+    # Copy all .admx files, excluding those from the 'Microsoft' folder
+    $admxFiles = Get-ChildItem -Path "$STIGdir\ADMX Templates" -Recurse -File -Filter '*.admx' | Where-Object { $_.FullName -notlike "*\Microsoft\*" }
+
+    foreach ($file in $admxFiles) {Copy-Item -Path $file.FullName -Destination $ADMXDest -Force}
+
+    # Copy all .adml files from 'en-us' subfolders, excluding those in 'Microsoft'
+    $admlFolders = Get-ChildItem -Path "$STIGdir\ADMX Templates" -Directory -Recurse | Where-Object {$_.Name -eq 'en-us' -and $_.FullName -notlike "*\Microsoft\*"}
+     write 4
+    foreach ($folder in $admlFolders) {
+        $admlFiles = Get-ChildItem -Path $folder.FullName -Recurse -File -Filter '*.adml'
+        foreach ($file in $admlFiles) {
+            Copy-Item -Path $file.FullName -Destination $ADMLDest -Force
         }
     }
+
+    Write-Output "Copied App ADMX and ADML files to $ADMXDest."
 }
 
-<# Enables DEP. If there are bitlocker encrypted volumes, bitlocker is temporarily suspended for this operation
-Configure DEP to at least OptOut
-V-220726 Windows 10
-V-253283 Windows 11
-#>
-Write-Output "V-220726: Checking to see if DEP is enabled."
-$nxOutput = BCDEdit /enum '{current}' | Select-string nx
-if (-not($nxOutput -match "OptOut" -or $nxOutput -match "AlwaysOn")) {
-    Write-Output "DEP is not enabled. Enabling."
-    # Determines bitlocker encrypted volumes
-    $encryptedVolumes = (Get-BitLockerVolume | Where-Object {$_.ProtectionStatus -eq 'On'}).MountPoint
-    if ($encryptedVolumes.Count -gt 0) {
-        Write-Log -EventId 1 -Message "Encrypted Drive Found. Suspending encryption temporarily."
-        foreach ($volume in $encryptedVolumes) {
-            Suspend-BitLocker -MountPoint $volume -RebootCount 0
+$OS = Get-STIGOS
+
+Write-Verbose "Getting list of applicable Windows GPO folders..."
+
+# Define patterns to match folder names
+$matchPatterns = @()
+$matchPatterns += @(
+    $OS,
+    "Edge",
+    "Firewall",
+    "Internet Explorer",
+    "Defender Antivirus"
+)
+
+if($ApplyAppSTIGs){$matchPatterns += $ApplyAppSTIGs}
+
+# Combine patterns into a single regex (escaped if needed)
+$patternRegex = ($matchPatterns -join "|") -replace '\s+', ' '
+
+# Filter GPO folders based on match
+$ApplicableGPOs = Get-ChildItem -Path $STIGdir | Where-Object { $_.Name -match $patternRegex }
+
+# Output for visibility (optional)
+$ApplicableGPOs | ForEach-Object { Write-Verbose "Matched GPO: $($_.Name)" }
+
+IF($TestInstall.IsPresent){$ApplicableGPOs.FullName | Apply-GPOBackups -test}Else{$ApplicableGPOs.FullName | Apply-GPOBackups}
+
+#Apply Deltas to STIGs by alphabetical order numarical subfolders may be needed for corret precedence - Please Test
+If($DeltaGPO.IsPresent){
+    IF($TestInstall.IsPresent){$DeltaPath | Apply-GPOBackups -test}Else{$ApplicableGPOs.FullName | Apply-GPOBackups}
+    }
+
+#Set Aditional Windows 10 & 11 settings
+If($OS -like "Windows 1*"){
+    #Disable Windows PowerShell V2
+    Write-Output "V-220728: Disabling the PowerShell V2."
+    If ((Get-WindowsOptionalFeature -Online | Where-Object {$_.FeatureName -eq 'MicrosoftWindowsPowerShellV2Root'}).State -eq 'Enabled') {
+        Disable-WindowsOptionalFeature -Online -FeatureName MicrosoftWindowsPowerShellV2Root
+    }
+
+    #Disable Secondary Logon Service
+    Write-Output "V-220732: Disabling the Secondary Logon Service."
+    $Service = 'SecLogon'
+    $Serviceobject = Get-Service | Where-Object {$_.Name -eq $Service}
+    If ($Serviceobject) {
+        $StartType = $ServiceObject.StartType
+        If ($StartType -ne 'Disabled') {
+            start-process -FilePath "reg.exe" -ArgumentList "ADD HKLM\System\CurrentControlSet\Services\SecLogon /v Start /d 4 /T REG_DWORD /f" -PassThru -Wait
         }
-        Start-Process -Wait -FilePath 'C:\Windows\System32\bcdedit.exe' -ArgumentList '/set "{current}" nx OptOut'
-        foreach ($volume in $encryptedVolumes) {
-            Resume-BitLocker -MountPoint $volume
-            Write-Output "Resumed Protection."
+        If ($ServiceObject.Status -ne 'Stopped') {
+            Try {
+                Stop-Service $Service -Force
+            }
+            Catch {
+            }
         }
     }
-    else {
-        Start-Process -Wait -FilePath 'C:\Windows\System32\bcdedit.exe' -ArgumentList '/set "{current}" nx OptOut'
+
+    <# Enables DEP. If there are bitlocker encrypted volumes, bitlocker is temporarily suspended for this operation
+    Configure DEP to at least OptOut
+    V-220726 Windows 10
+    V-253283 Windows 11
+    #>
+
+    Write-Output "V-220726: Checking to see if DEP is enabled."
+    $nxOutput = BCDEdit /enum '{current}' | Select-string nx
+    if (-not($nxOutput -match "OptOut" -or $nxOutput -match "AlwaysOn")) {
+        Write-Output "DEP is not enabled. Enabling."
+        # Determines bitlocker encrypted volumes
+        $encryptedVolumes = (Get-BitLockerVolume | Where-Object {$_.ProtectionStatus -eq 'On'}).MountPoint
+        if ($encryptedVolumes.Count -gt 0) {
+            Write-Log -EventId 1 -Message "Encrypted Drive Found. Suspending encryption temporarily."
+            foreach ($volume in $encryptedVolumes) {
+                Suspend-BitLocker -MountPoint $volume -RebootCount 0
+            }
+            Start-Process -Wait -FilePath 'C:\Windows\System32\bcdedit.exe' -ArgumentList '/set "{current}" nx OptOut'
+            foreach ($volume in $encryptedVolumes) {
+                Resume-BitLocker -MountPoint $volume
+                Write-Output "Resumed Protection."
+            }
+        }
+        else {
+            Start-Process -Wait -FilePath 'C:\Windows\System32\bcdedit.exe' -ArgumentList '/set "{current}" nx OptOut'
+        }
+    } Else {
+        Write-Output "DEP is already enabled."
     }
-} Else {
-    Write-Output "DEP is already enabled."
-}
 
-# V-220734 Bluetooth
-Write-Output 'V-220734: Disabling Bluetooth Radios.'
-Set-BluetoothRadioStatus -BluetoothStatus Off
+    # V-220734 Bluetooth
+    Write-Output 'V-220734: Disabling Bluetooth Radios.'
+    Set-BluetoothRadioStatus -BluetoothStatus Off
 
-Write-Output "Configuring Registry Keys that aren't policy objects."
-# WN10-CC-000039
-Reg.exe ADD "HKLM\SOFTWARE\Classes\batfile\shell\runasuser" -v SuppressionPolicy -d 4096 -t REG_DWORD -f
-Reg.exe ADD "HKLM\SOFTWARE\Classes\cmdfile\shell\runasuser" -v SuppressionPolicy -d 4096 -t REG_DWORD -f
-Reg.exe ADD "HKLM\SOFTWARE\Classes\exefile\shell\runasuser" -v SuppressionPolicy -d 4096 -t REG_DWORD -f
-Reg.exe ADD "HKLM\SOFTWARE\Classes\mscfile\shell\runasuser" -v SuppressionPolicy -d 4096 -t REG_DWORD -f
+    #V-225238 - Disable TLS RC4 cipher in .Net
+    Reg.exe ADD "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\.NETFramework\v4.0.30319" -v SchUseStrongCrypto -d 1 -t REG_DWORD -f
+    Reg.exe ADD "HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\.NETFramework\v4.0.30319" -v SchUseStrongCrypto -d 1 -t REG_DWORD -f
 
-# CVE-2013-3900
-Write-Output "CVE-2013-3900: Mitigating PE Installation risks."
-Reg.exe ADD "HKLM\SOFTWARE\Wow6432Node\Microsoft\Cryptography\Wintrust\Config" -v EnableCertPaddingCheck -d 1 -t REG_DWORD -f
-Reg.exe ADD "HKLM\SOFTWARE\Microsoft\Cryptography\Wintrust\Config" -v EnableCertPaddingCheck -d 1 -t REG_DWORD -f
+    Write-Output "Configuring Registry Keys that aren't policy objects."
+    # WN10-CC-000039
+    Reg.exe ADD "HKLM\SOFTWARE\Classes\batfile\shell\runasuser" -v SuppressionPolicy -d 4096 -t REG_DWORD -f
+    Reg.exe ADD "HKLM\SOFTWARE\Classes\cmdfile\shell\runasuser" -v SuppressionPolicy -d 4096 -t REG_DWORD -f
+    Reg.exe ADD "HKLM\SOFTWARE\Classes\exefile\shell\runasuser" -v SuppressionPolicy -d 4096 -t REG_DWORD -f
+    Reg.exe ADD "HKLM\SOFTWARE\Classes\mscfile\shell\runasuser" -v SuppressionPolicy -d 4096 -t REG_DWORD -f
+
+    # CVE-2013-3900
+    Write-Output "CVE-2013-3900: Mitigating PE Installation risks."
+    Reg.exe ADD "HKLM\SOFTWARE\Wow6432Node\Microsoft\Cryptography\Wintrust\Config" -v EnableCertPaddingCheck -d 1 -t REG_DWORD -f
+    Reg.exe ADD "HKLM\SOFTWARE\Microsoft\Cryptography\Wintrust\Config" -v EnableCertPaddingCheck -d 1 -t REG_DWORD -f
+    }
 
 Remove-Item -Path $OutputDir -Recurse -Force
 Stop-Transcript
