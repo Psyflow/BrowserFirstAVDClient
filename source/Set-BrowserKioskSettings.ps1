@@ -75,7 +75,7 @@ param (
 
     [switch]$ShowDisplaySettings,
     
-    [version]$Version = '6.0.0'
+    [version]$Version = '1.0.0'
 )
 
 # Restart in 64-Bit PowerShell if not already running in 64-bit mode
