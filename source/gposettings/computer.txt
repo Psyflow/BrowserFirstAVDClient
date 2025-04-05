@@ -8,16 +8,6 @@ Computer
 Software\Policies\Microsoft\Dsh
 AllowNewsAndInterests
 DWORD:0
-; Do not create Edge Desktop Shortcut
-Computer
-Software\Policies\Microsoft\EdgeUpdate
-CreateDesktopShortcutDefault
-DWORD:0
-; Remove Edge Desktop Shortcut
-Computer
-Software\Policies\Microsoft\EdgeUpdate
-RemoveDesktopShortcutDefault
-DWORD:1
 ; Remove Windows Consumer Features
 Computer
 Software\Policies\Microsoft\Windows\CloudContent
