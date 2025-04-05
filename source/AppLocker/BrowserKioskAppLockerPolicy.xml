@@ -29,7 +29,7 @@
   </RuleCollection>
   <RuleCollection Type="Dll" EnforcementMode="NotConfigured" />
   <RuleCollection Type="Exe" EnforcementMode="NotConfigured">
-    <FilePublisherRule Id="0cfbc308-ebdd-460e-b605-ac8d90f362e3" Name="NOTEPAD.EXE, in MICROSOFT® WINDOWS® OPERATING SYSTEM, from O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" Description="" UserOrGroupSid="S-1-5-32-545" Action="Deny">
+    <FilePublisherRule Id="0cfbc308-ebdd-460e-b605-ac8d90f362e3" Name="NOTEPAD.EXE, in MICROSOFT® WINDOWS® OPERATING SYSTEM, from O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" Description="" UserOrGroupSid="S-1-5-32-545" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="NOTEPAD.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
@@ -43,7 +43,14 @@
         </FilePublisherCondition>
       </Conditions>
     </FilePublisherRule>
-    <FilePublisherRule Id="e4d61967-c15e-4870-8ae6-d474b35a1969" Name="MSEDGE.EXE, in MICROSOFT EDGE, from O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" Description="" UserOrGroupSid="S-1-5-32-545" Action="Deny">
+    <FilePublisherRule Id="b1234567-89ab-cdef-0123-456789abcdef" Name="OneDrive.exe, from Microsoft Corporation" Description="Allows OneDrive for the Users group." UserOrGroupSid="S-1-5-32-545" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="OneDrive.exe">
+          <BinaryVersionRange LowSection="*" HighSection="*" />
+        </FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+    <FilePublisherRule Id="e4d61967-c15e-4870-8ae6-d474b35a1969" Name="MSEDGE.EXE, in MICROSOFT EDGE, from O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" Description="" UserOrGroupSid="S-1-5-32-545" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT EDGE" BinaryName="MSEDGE.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
