@@ -117,10 +117,6 @@ $Script:File = $MyInvocation.MyCommand.Name
 $Script:Name=[System.IO.Path]::GetFileNameWithoutExtension($Script:File)
 $Script:Dir = Split-Path $Script:FullName
 
-# Windows Event Log (.evtx)
-$EventLog = 'Browser First Kiosk'
-$EventSource = 'Configuration Script'
-
 # Set Source Directories and supporting files
 $DirAppLocker = Join-Path -Path $Script:Dir -ChildPath "AppLocker"
 $FileAppLockerClear = Join-Path -Path $DirAppLocker -ChildPath "ClearAppLockerPolicy.xml"
@@ -318,11 +314,11 @@ function Update-ACLInheritance {
 Function Write-Log {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true)]
-        [string]$EventLog,
+        [Parameter(Mandatory = $false)]
+        [string]$EventLog = 'Browser First AVD Kiosk',
 
-        [Parameter(Mandatory = $true)]
-        [string]$EventSource,
+        [Parameter(Mandatory = $false)]
+        [string]$EventSource  = 'Configuration Script',
         
         [Parameter()]
         [ValidateSet('Information', 'Warning', 'Error')]
