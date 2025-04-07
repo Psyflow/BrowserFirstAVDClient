@@ -68,9 +68,6 @@ param (
     [ValidateSet('AzureCloud', 'AzureUSGovernment')]
     [string]$EnvironmentAVD = 'AzureCloud',
 
-    [Parameter(ParameterSetName = 'DirectLogonClientShell')]
-    [Parameter(ParameterSetName = 'DirectLogonExplorerShell')]
-
     [switch]$InstallAVDClient,
 
     [switch]$ShowDisplaySettings,
@@ -123,7 +120,6 @@ $FileAppLockerClear = Join-Path -Path $DirAppLocker -ChildPath "ClearAppLockerPo
 $DirMultiAppSettings = Join-Path -Path $Script:Dir -ChildPath 'MultiAppConfigs'
 $DirProvisioningPackages = Join-Path -Path $Script:Dir -ChildPath "ProvisioningPackages"
 $DirStartMenu = Join-Path -Path $Script:Dir -ChildPath "StartMenu"
-$DirShellLauncherSettings = Join-Path -Path $Script:Dir -ChildPath "ShellLauncherConfigs"
 $DirGPO = Join-Path -Path $Script:Dir -ChildPath "GPOSettings"
 $DirKiosk = Join-Path -Path $env:SystemDrive -ChildPath "KioskSettings"
 $DirRegKeys = Join-Path -Path $Script:Dir -ChildPath "RegistryKeys"
@@ -136,18 +132,10 @@ $DirSchedTasksScripts = Join-Path -Path $Script:Dir -ChildPath "Scripts\Schedule
 # Find LTSC OS (and Windows IoT Enterprise)
 $OS = Get-WmiObject -Class Win32_OperatingSystem
 
-# Detect Windows 11
-If ($OS.BuildNumber -lt 22000 -or $OS.Caption -match 'Windows 10') { $Windows10 = $true }
-If ($OS.Name -match 'LTSC') { $LTSC = $true }
-
 # Set AVD feed subscription Url.
 If ($EnvironmentAVD -eq 'AzureUSGovernment') {$SubscribeUrl = 'https://rdweb.wvd.azure.us'}
 Else {$SubscribeUrl = 'https://client.wvd.microsoft.com'}
-
-
-# Detect Wifi Adapter in order to show Wifi Settings in system tray when necessary.
-$WifiAdapter = Get-NetAdapter | Where-Object { $_.Name -like '*Wi-Fi*' -or $_.Name -like '*Wifi*' -or $_.MediaType -like '*802.11*' }     
-    
+  
 # Set default exit code to 0
 $ScriptExitCode = 0
 
@@ -310,35 +298,74 @@ function Update-ACLInheritance {
     }
 
 }
-
-Function Write-Log {
+function Write-Log {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $false)]
-        [string]$EventLog = 'Browser First AVD Kiosk',
-
-        [Parameter(Mandatory = $false)]
-        [string]$EventSource  = 'Configuration Script',
-        
-        [Parameter()]
-        [ValidateSet('Information', 'Warning', 'Error')]
+        [string]$EventLog,
+        [string]$EventSource,
+        [ValidateSet('Information','Warning','Error')]
         [string]$EntryType = 'Information',
-
-        [Parameter(Mandatory = $true)]
-        [Int]$EventId,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Message
+        [int]$EventId = 1000,
+        [string]$Message,
+        [switch]$WriteToConsole,
+        [switch]$Initialize
     )
-    Write-EventLog -LogName $EventLog -Source $EventSource -EntryType $EntryType -EventId $EventId -Message $Message -ErrorAction SilentlyContinue
+
+    # Use passed-in EventLog/Source or fall back to persisted ones
+    if ($Initialize) {
+        # Save to script-level variables so they persist across calls
+        if ($EventLog)     { $script:PersistedEventLog = $EventLog }
+        if ($EventSource)  { $script:PersistedEventSource = $EventSource }
+
+        $LogFile = "C:\Logs\$($script:PersistedEventLog).log"
+        $LogDir = Split-Path -Path $LogFile -Parent
+
+        if (-not [System.Diagnostics.EventLog]::SourceExists($script:PersistedEventSource)) {
+            try {
+                New-EventLog -LogName $script:PersistedEventLog -Source $script:PersistedEventSource
+            } catch {
+                Write-Warning "Could not create event source '$script:PersistedEventSource': $_"
+            }
+        }
+
+        if (-not (Test-Path -Path $LogDir)) {
+            New-Item -Path $LogDir -ItemType Directory -Force | Out-Null
+        }
+
+        if (-not (Test-Path -Path $LogFile)) {
+            New-Item -Path $LogFile -ItemType File -Force | Out-Null
+        }
+
+        return
+    }
+
+    # Enforce Message requirement
+    if (-not $Message) {
+        throw "The -Message parameter is required unless -Initialize is specified."
+    }
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "$timestamp [$EntryType] EventID=$($EventId): $Message"
+    $LogFile = "C:\Logs\$($script:PersistedEventLog).log"
+
+    try {
+        Write-EventLog -LogName $script:PersistedEventLog -Source $script:PersistedEventSource -EntryType $EntryType -EventId $EventId -Message $Message -ErrorAction Stop
+    } catch {
+        "$timestamp [Error] Failed to write to EventLog: $($_.Exception.Message)`nOriginal message: $Message" | Out-File -FilePath $LogFile -Append
+    }
+
+    $logEntry | Out-File -FilePath $LogFile -Append
+
+    if ($WriteToConsole) {
+        Write-Host $logEntry
+    }
 }
 
 #endregion Functions
 
 #region Initialization
 
-New-EventLog -LogName $EventLog -Source $EventSource -ErrorAction SilentlyContinue
-
+Write-Log -Initialize -EventLog "Browser First AVD Kiosk" -EventSource "Configuration Script"
 Write-Log -EntryType Information -EventId 1 -Message "Executing '$Script:FullName'."
 Write-Log -EntryType Information -EventId 2 -Message "Running on $($OS.Caption) version $($OS.Version)."
 
@@ -487,6 +514,12 @@ Get-ChildItem -Path $DirUserLogos | Copy-Item -Destination "$env:ProgramData\Mic
 
 #region Local GPO Settings
 
+& "$DirConfigurationScripts\Apply-BrowserSettings.ps1"
+& "$DirConfigurationScripts\Apply-OneDriveSettings.ps1"
+
+# Set Smartcard Removal Action to 1 (Lock Workstation)
+Set-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ScRemoveOption" -Value 1 -Type DWord
+
 # Apply Non-Admin GPO settings
 
 $nonAdminsFile = 'nonadmins-MultiAppKiosk.txt'
@@ -592,7 +625,7 @@ Else {
 
 #region Applocker Policy 
 
-Write-Log -EntryType Information -EventId 110 -Message "Applying AppLocker Policy to disable Microsoft Edge, Internet Explorer, Notepad, Windows Search, and Wordpad for the Kiosk User."
+Write-Log -EntryType Information -EventId 110 -Message "Applying AppLocker Policy to disable Internet Explorer and Wordpad for the Kiosk User."
 # If there is an existing applocker policy, back it up and store its XML for restore.
 # Else, copy a blank policy to the restore location.
 # Then apply the new AppLocker Policy
@@ -619,32 +652,95 @@ If ((Get-Service -Name AppIDSvc).Status -ne 'Running') {
 Write-Log -EntryType Information -EventID 117 -Message "Enabling Keyboard filter."
 Enable-WindowsOptionalFeature -Online -FeatureName Client-KeyboardFilter -All -NoRestart
 
-# Configure Keyboard Filter after reboot
-$TaskName = "(AVD Client) - Configure Keyboard Filter"
+# === CONFIGURATION ===
+$TaskName              = "(AVD Client) - Configure Keyboard Filter"
+$TaskScriptName        = "Set-KeyboardFilterConfiguration.ps1"
+$TaskScriptEventSource = "Keyboard Filter Configuration"
+$TaskDescription       = "Configures the Keyboard Filter"
+$TaskScriptFullName    = Join-Path -Path $SchedTasksScriptsDir -ChildPath $TaskScriptName
+
+# === Logging ===
 Write-Log -EntryType Information -EventId 118 -Message "Creating Scheduled Task: '$TaskName'."
-$TaskScriptEventSource = 'Keyboard Filter Configuration'
-$TaskDescription = "Configures the Keyboard Filter"
-$TaskScriptName = 'Set-KeyboardFilterConfiguration.ps1'
-$TaskScriptFullName = Join-Path -Path $SchedTasksScriptsDir -ChildPath $TaskScriptName
 New-EventLog -LogName $EventLog -Source $TaskScriptEventSource -ErrorAction SilentlyContinue     
+
+# === Task Trigger ===
 $TaskTrigger = New-ScheduledTaskTrigger -AtStartup
+
+# === Script Arguments ===
 $TaskScriptArgs = "-TaskName `"$TaskName`" -EventLog `"$EventLog`" -EventSource `"$TaskScriptEventSource`""
-If ($ShowDisplaySettings) {
-    $TaskScriptArgs = "$TaskScriptArgs -ShowDisplaySettings"
-}
-$TaskAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-executionpolicy bypass -file $TaskScriptFullName $TaskScriptArgs"
+if ($ShowDisplaySettings) {$TaskScriptArgs += " -ShowDisplaySettings"}
+
+# === Task Action ===
+$TaskAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy Bypass -File `"$TaskScriptFullName`" $TaskScriptArgs"
+
+# === Task Security Principal ===
 $TaskPrincipal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-$TaskSettings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 15) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries
-Register-ScheduledTask -TaskName $TaskName -Description $TaskDescription -Action $TaskAction -Settings $TaskSettings -Principal $TaskPrincipal -Trigger $TaskTrigger
-If (Get-ScheduledTask | Where-Object { $_.TaskName -eq "$TaskName" }) {
-    Write-Log -EntryType Information -EventId 119 -Message "Scheduled Task created successfully."
-}
-Else {
-    Write-Log -EntryType Error -EventId 120 -Message "Scheduled Task not created."
+
+# === Task Settings ===
+$TaskSettings = New-ScheduledTaskSettingsSet `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
+    -MultipleInstances IgnoreNew `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries
+
+# === Register the Task ===
+Register-ScheduledTask -TaskName $TaskName `
+    -Description $TaskDescription `
+    -Action $TaskAction `
+    -Settings $TaskSettings `
+    -Principal $TaskPrincipal `
+    -Trigger $TaskTrigger `
+    -Force
+
+# === Confirm Task Creation ===
+if (Get-ScheduledTask | Where-Object { $_.TaskName -eq "$TaskName" }) {
+    Write-Log -EntryType Information -EventId 119 -Message "Scheduled Task '$TaskName' created successfully."
+} else {
+    Write-Log -EntryType Error -EventId 120 -Message "Scheduled Task '$TaskName' not created."
     $ScriptExitCode = 1618
 }
-
 #endregion Keyboard Filter
+
+#region Explorer Settings
+# === CONFIGURATION ===
+$TaskName        = "(AVD Client) - NoDrives for Standard Users"
+$TaskDescription = "Sets the NoDrives policy in HKCU if the user is not an admin."
+$ScriptPath      = "$SchedTasksScriptsDir\Apply-ExplorerSettings.ps1"
+$RunAsUser       = "NT AUTHORITY\INTERACTIVE"   # Runs in user context
+
+# === EVENT LOG ===
+Write-Log -EntryType Information -EventId 118 -Message "Creating scheduled task: $TaskName"
+$EventLogSource  = "ConfigureNoDrives"
+$EventLogName    = "Application"
+if (-not [System.Diagnostics.EventLog]::SourceExists($EventLogSource)) {New-EventLog -LogName $EventLogName -Source $EventLogSource}
+
+# === CREATE TASK COMPONENTS ===
+$ScriptArgs = "-TaskName `"$TaskName`" -EventLog `"$EventLogName`" -EventSource `"$EventLogSource`""
+$trigger    = New-ScheduledTaskTrigger -AtLogOn
+$action     = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScriptPath`" $ScriptArgs"
+$principal  = New-ScheduledTaskPrincipal -UserId $RunAsUser -LogonType Interactive -RunLevel Limited
+$settings   = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 1) `
+    -MultipleInstances IgnoreNew
+
+# === REGISTER THE TASK ===
+Register-ScheduledTask -TaskName $TaskName `
+    -Description $TaskDescription `
+    -Action $action `
+    -Trigger $trigger `
+    -Principal $principal `
+    -Settings $settings `
+    -Force
+
+# === CONFIRMATION ===
+if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+    Write-EventLog -LogName $EventLogName -Source $EventLogSource -EventId 1001 -EntryType Information -Message "Scheduled task '$TaskName' created successfully."
+} else {
+    Write-EventLog -LogName $EventLogName -Source $EventLogSource -EventId 1002 -EntryType Error -Message "Failed to create scheduled task '$TaskName'."
+}
+#endregion Explorer Settings
 
 Write-Log -EntryType Information -EventId 150 -Message "Updating Group Policy"
 $gpupdate = Start-Process -FilePath 'GPUpdate' -ArgumentList '/force' -Wait -PassThru
