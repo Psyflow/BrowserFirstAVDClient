@@ -248,30 +248,30 @@ Function Get-STIGLink {
     }
 
     Process {
-    try {
-                Write-Verbose "$($CmdletName): Checking DoD STIG site: $Url"
-                
-                $STIGLink = Invoke-WebRequest -Uri $Url |
-                            Select-Object -ExpandProperty Links |
-                            Where-Object { $_.href -like "*U_STIG_GPO_Package*" } |
-                            Select-Object -ExpandProperty href
+        try {
+                    Write-Verbose "$($CmdletName): Checking DoD STIG site: $Url"
+                    
+                    $STIGLink = Invoke-WebRequest -Uri $Url -UseBasicParsing |
+                                Select-Object -ExpandProperty Links |
+                                Where-Object { $_.href -like "*U_STIG_GPO_Package*" } |
+                                Select-Object -ExpandProperty href
 
-                # Return the single link if exactly one match; if multiple, return the first
-                if ($STIGLink.Count -eq 1) {
-                    Write-Verbose "$($CmdletName): Found link: $STIGLink"
-                    return $STIGLink
-                }
-                elseif ($STIGLink.Count -gt 1) {
-                    Write-Verbose "$($CmdletName): Multiple matches found. Returning first: $($STIGLink[0])"
-                    return $STIGLink[0]
-                }
-                else {
-                    Write-Error "$($CmdletName): Could not find a link matching '$SearchString' on $Url"
-                }
-            } catch {Write-Error "$($CmdletName): Error retrieving STIG settings. $_"}
+                    # Return the single link if exactly one match; if multiple, return the first
+                    if ($STIGLink.Count -eq 1) {
+                        Write-Verbose "$($CmdletName): Found link: $STIGLink"
+                        return $STIGLink
+                    }
+                    elseif ($STIGLink.Count -gt 1) {
+                        Write-Verbose "$($CmdletName): Multiple matches found. Returning first: $($STIGLink[0])"
+                        return $STIGLink[0]
+                    }
+                    else {
+                        Write-Error "$($CmdletName): Could not find a link matching '$SearchString' on $Url"
+                    }
+                } catch {Write-Error "$($CmdletName): Error retrieving STIG settings. $_"}
+        }
 
-        End {Write-Verbose "$($CmdletName): Completed."}
-    }
+    End {Write-Verbose "$($CmdletName): Completed."}
 }
 
 Function Get-InternetFile {
@@ -336,7 +336,7 @@ Function Get-InternetFile {
                 Return $OutputFile
             }
             Else {
-                Throw "$($CmdletName): Download failed—file not found after download attempt."
+                Throw "$($CmdletName): Download failedï¿½file not found after download attempt."
             }
         }
         Catch {
@@ -344,7 +344,6 @@ Function Get-InternetFile {
             Return $null
         }
     }
-
     End {
         Write-Verbose "$($CmdletName): Completed."
     }
@@ -393,7 +392,7 @@ Function Get-STIGOS {
     Return $STIG_OS
 }
 
-Function Download-STIGs {
+Function Get-STIGs {
     [CmdletBinding()]
     Param (
         # Determines the source type
@@ -490,7 +489,7 @@ Function Download-STIGs {
         }
     }
 }
-Function Apply-GPOBackups {
+Function Set-GPOBackups {
     [CmdletBinding()]
     Param (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
@@ -533,7 +532,6 @@ Function Apply-GPOBackups {
                 ForEach($line in $output){Write-Output "   $line"}
             }
         }
-
         Write-Verbose "$($CmdletName): Completed."
     }
 }
@@ -546,40 +544,41 @@ If ($LocalPkg.IsPresent) {
     If (Test-Path $LocalZipPath){Write-Output "Using local STIG package: $LocalZipPath"}
     Else {Throw "ERROR: LocalPath '$LocalZipPath' not found."}
    
-    $STIGdir = Download-STIGs -Source Local -ZipPath $LocalZipPath
+    $STIGdir = Get-STIGs -Source Local -ZipPath $LocalZipPath
 }
 Else {
     Write-Verbose "Downloading STIG package"
     #downloading and use remote package
     $Url = Get-STIGLink
-    $STIGdir = Download-STIGs -Source Internet -DownloadURL $Url
+    $STIGdir = Get-STIGs -Source Internet -DownloadURL $Url
 }
 
 #Download LGPO and copy it to System32
-$fileLGPO = $null
-$outputDir = $null
-If (($LocalLGPO.IsPresent) -and ($LGPOPath)) {
-    
-    If (Test-Path $LGPOPath){Write-Output "Using local LGPO.exe from $LGPOPath"}
-    Else {Throw "ERROR: Local LGPO.exe '$LGPOPath' not found."}
-    $fileLGPO = $LGPOPath
-}
-Else {
-    Write-Output "Retrieving LGPO.exe package from Microsoft.com"
-    # Logic for downloading and using remote package
-    $urlLGPO = 'https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FFA-9429-7E023E7DA8D8/LGPO.zip'
-    $fileLGPODownload = Get-InternetFile -Url $urlLGPO -OutputDirectory $env:Temp
-    Write-Verbose "LGPO.exe downloaded from $urlLGPO to $env:Temp"
-    $outputDir = "$env:Temp\LGPO"
-    Expand-Archive -Path $fileLGPODownload -DestinationPath $outputDir
-    Remove-Item $fileLGPODownload -Force
-    $fileLGPO = (Get-ChildItem -Path $outputDir -file -Filter 'lgpo.exe' -Recurse)[0].FullName
-}
+If (!(test-path "$env:SystemRoot\System32\LGPO.exe")) {
+    $fileLGPO = $null
+    $outputDir = $null
+    If (($LocalLGPO.IsPresent) -and ($LGPOPath)) {
+        
+        If (Test-Path $LGPOPath){Write-Output "Using local LGPO.exe from $LGPOPath"}
+        Else {Throw "ERROR: Local LGPO.exe '$LGPOPath' not found."}
+        $fileLGPO = $LGPOPath
+    }
+    Else {
+        Write-Output "Retrieving LGPO.exe package from Microsoft.com"
+        # Logic for downloading and using remote package
+        $urlLGPO = 'https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FFA-9429-7E023E7DA8D8/LGPO.zip'
+        $fileLGPODownload = Get-InternetFile -Url $urlLGPO -OutputDirectory $env:Temp
+        Write-Verbose "LGPO.exe downloaded from $urlLGPO to $env:Temp"
+        $outputDir = "$env:Temp\LGPO"
+        Expand-Archive -Path $fileLGPODownload -DestinationPath $outputDir
+        Remove-Item $fileLGPODownload -Force
+        $fileLGPO = (Get-ChildItem -Path $outputDir -file -Filter 'lgpo.exe' -Recurse)[0].FullName
+    }
 
- Copy-Item -Path $fileLGPO -Destination "$env:SystemRoot\System32" -Force
- Write-Output "Copied LGPO.exe to $env:SystemRoot\System32"
- if($outputDir){Remove-Item -Path $outputDir -Recurse -Force}
-
+    Copy-Item -Path $fileLGPO -Destination "$env:SystemRoot\System32" -Force
+    Write-Output "Copied LGPO.exe to $env:SystemRoot\System32"
+    if($outputDir){Remove-Item -Path $outputDir -Recurse -Force}
+}
 
 #Microsoft ADMX and ADML files are copied into the PolicyDefinitions folder
 $A = Join-Path -Path $STIGdir -ChildPath "ADMX Templates\Microsoft"
@@ -613,8 +612,7 @@ if($ApplyAppSTIGs){
 
     # Copy all .adml files from 'en-us' subfolders, excluding those in 'Microsoft'
     $admlFolders = Get-ChildItem -Path "$STIGdir\ADMX Templates" -Directory -Recurse | Where-Object {$_.Name -eq 'en-us' -and $_.FullName -notlike "*\Microsoft\*"}
-     write 4
-    foreach ($folder in $admlFolders) {
+      foreach ($folder in $admlFolders) {
         $admlFiles = Get-ChildItem -Path $folder.FullName -Recurse -File -Filter '*.adml'
         foreach ($file in $admlFiles) {
             Copy-Item -Path $file.FullName -Destination $ADMLDest -Force
@@ -649,11 +647,11 @@ $ApplicableGPOs = Get-ChildItem -Path $STIGdir | Where-Object { $_.Name -match $
 # Output for visibility (optional)
 $ApplicableGPOs | ForEach-Object { Write-Verbose "Matched GPO: $($_.Name)" }
 
-IF($TestInstall.IsPresent){$ApplicableGPOs.FullName | Apply-GPOBackups -test}Else{$ApplicableGPOs.FullName | Apply-GPOBackups}
+IF($TestInstall.IsPresent){$ApplicableGPOs.FullName | Set-GPOBackups -test}Else{$ApplicableGPOs.FullName | Set-GPOBackups}
 
 #Apply Deltas to STIGs by alphabetical order numarical subfolders may be needed for corret precedence - Please Test
 If($DeltaGPO.IsPresent){
-    IF($TestInstall.IsPresent){$DeltaPath | Apply-GPOBackups -test}Else{$ApplicableGPOs.FullName | Apply-GPOBackups}
+    IF($TestInstall.IsPresent){$DeltaPath | Set-GPOBackups -test}Else{$ApplicableGPOs.FullName | Set-GPOBackups}
     }
 
 #Set Aditional Windows 10 & 11 settings
