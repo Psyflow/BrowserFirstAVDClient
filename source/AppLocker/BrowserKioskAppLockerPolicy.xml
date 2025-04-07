@@ -1,5 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
 <AppLockerPolicy Version="1">
+  <!-- APPX Rules -->
   <RuleCollection Type="Appx" EnforcementMode="NotConfigured">
+    <!-- Deny Microsoft Edge (Appx version) for standard users -->
     <FilePublisherRule Id="2a7c0929-cdaf-4d31-94e7-bab463d20db3" Name="Microsoft.MicrosoftEdge.Stable, from Microsoft Corporation" Description="" UserOrGroupSid="S-1-5-32-545" Action="Deny">
       <Conditions>
         <FilePublisherCondition PublisherName="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" ProductName="Microsoft.MicrosoftEdge.Stable" BinaryName="*">
@@ -7,6 +10,8 @@
         </FilePublisherCondition>
       </Conditions>
     </FilePublisherRule>
+
+    <!-- Allow all signed packaged apps except Edge -->
     <FilePublisherRule Id="8f18ec13-393d-4fe7-850d-3e379948584d" Name="All signed packaged apps" Description="Allows members of the Everyone group to run packaged apps that are signed." UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="*" ProductName="*" BinaryName="*">
@@ -19,7 +24,9 @@
         </FilePublisherCondition>
       </Exceptions>
     </FilePublisherRule>
-    <FilePublisherRule Id="e626f0b0-51aa-41f8-b46b-31bf4c67df60" Name="All signed packaged apps" Description="Allows members of the Everyone group to run packaged apps that are signed." UserOrGroupSid="S-1-5-32-544" Action="Allow">
+
+    <!-- Allow signed Appx for Administrators -->
+    <FilePublisherRule Id="e626f0b0-51aa-41f8-b46b-31bf4c67df60" Name="All signed packaged apps" Description="Allows members of the Administrators group to run packaged apps that are signed." UserOrGroupSid="S-1-5-32-544" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="*" ProductName="*" BinaryName="*">
           <BinaryVersionRange LowSection="0.0.0.0" HighSection="*" />
@@ -27,37 +34,50 @@
       </Conditions>
     </FilePublisherRule>
   </RuleCollection>
+
+  <!-- DLL RuleCollection not used -->
   <RuleCollection Type="Dll" EnforcementMode="NotConfigured" />
+
+  <!-- EXE Rules -->
   <RuleCollection Type="Exe" EnforcementMode="NotConfigured">
-    <FilePublisherRule Id="0cfbc308-ebdd-460e-b605-ac8d90f362e3" Name="NOTEPAD.EXE, in MICROSOFT® WINDOWS® OPERATING SYSTEM, from O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" Description="" UserOrGroupSid="S-1-5-32-545" Action="Allow">
+    <!-- Allow Notepad for Users -->
+    <FilePublisherRule Id="0cfbc308-ebdd-460e-b605-ac8d90f362e3" Name="NOTEPAD.EXE" Description="" UserOrGroupSid="S-1-5-32-545" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="NOTEPAD.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
         </FilePublisherCondition>
       </Conditions>
     </FilePublisherRule>
-    <FilePublisherRule Id="89645d64-5e2d-48b4-aa34-ac2919fd1021" Name="WORDPAD.EXE, in MICROSOFT® WINDOWS® OPERATING SYSTEM, from O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" Description="" UserOrGroupSid="S-1-5-32-545" Action="Deny">
+
+    <!-- Deny WordPad for Users -->
+    <FilePublisherRule Id="89645d64-5e2d-48b4-aa34-ac2919fd1021" Name="WORDPAD.EXE" Description="" UserOrGroupSid="S-1-5-32-545" Action="Deny">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="WORDPAD.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
         </FilePublisherCondition>
       </Conditions>
     </FilePublisherRule>
-    <FilePublisherRule Id="b1234567-89ab-cdef-0123-456789abcdef" Name="OneDrive.exe, from Microsoft Corporation" Description="Allows OneDrive for the Users group." UserOrGroupSid="S-1-5-32-545" Action="Allow">
+
+    <!-- Allow OneDrive for Users -->
+    <FilePublisherRule Id="b1234567-89ab-cdef-0123-456789abcdef" Name="OneDrive.exe" Description="Allows OneDrive for the Users group." UserOrGroupSid="S-1-5-32-545" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="OneDrive.exe">
           <BinaryVersionRange LowSection="*" HighSection="*" />
         </FilePublisherCondition>
       </Conditions>
     </FilePublisherRule>
-    <FilePublisherRule Id="e4d61967-c15e-4870-8ae6-d474b35a1969" Name="MSEDGE.EXE, in MICROSOFT EDGE, from O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" Description="" UserOrGroupSid="S-1-5-32-545" Action="Allow">
+
+    <!-- Allow Edge (exe version) for Users -->
+    <FilePublisherRule Id="e4d61967-c15e-4870-8ae6-d474b35a1969" Name="MSEDGE.EXE" Description="" UserOrGroupSid="S-1-5-32-545" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT EDGE" BinaryName="MSEDGE.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
         </FilePublisherCondition>
       </Conditions>
     </FilePublisherRule>
-    <FilePathRule Id="45c7737a-190b-4da5-a4e0-96253f029080" Name="All files located in the Program Files folder" Description="Allows members of the Everyone group to run applications that are located in the Program Files folder." UserOrGroupSid="S-1-1-0" Action="Allow">
+
+    <!-- Allow Program Files folder -->
+    <FilePathRule Id="45c7737a-190b-4da5-a4e0-96253f029080" Name="All files in Program Files" Description="Allows Everyone to run apps in Program Files" UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePathCondition Path="%PROGRAMFILES%\*" />
       </Conditions>
@@ -67,7 +87,9 @@
         </FilePublisherCondition>
       </Exceptions>
     </FilePathRule>
-    <FilePathRule Id="4a471ae6-c630-4e84-af6f-b7eb2535615b" Name="All files located in the Windows folder" Description="Allows members of the Everyone group to run applications that are located in the Windows folder." UserOrGroupSid="S-1-1-0" Action="Allow">
+
+    <!-- Allow Windows folder -->
+    <FilePathRule Id="4a471ae6-c630-4e84-af6f-b7eb2535615b" Name="All files in Windows" Description="Allows Everyone to run apps in Windows" UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePathCondition Path="%WINDIR%\*" />
       </Conditions>
@@ -80,12 +102,23 @@
         </FilePublisherCondition>
       </Exceptions>
     </FilePathRule>
-    <FilePathRule Id="fd686d83-a829-4351-8ff4-27c7de5755d2" Name="(Default Rule) All files" Description="Allows members of the local Administrators group to run all applications." UserOrGroupSid="S-1-5-32-544" Action="Allow">
+
+    <!-- Allow Everything for Admins -->
+    <FilePathRule Id="fd686d83-a829-4351-8ff4-27c7de5755d2" Name="Allow All for Admins" Description="Allows Admins to run all apps" UserOrGroupSid="S-1-5-32-544" Action="Allow">
+      <Conditions>
+        <FilePathCondition Path="*" />
+      </Conditions>
+    </FilePathRule>
+
+    <!-- Deny Everything for Non-Admins -->
+    <FilePathRule Id="4" Name="Deny All Non-Admins" Description="Blocks all other apps for standard users" UserOrGroupSid="S-1-1-0" Action="Deny">
       <Conditions>
         <FilePathCondition Path="*" />
       </Conditions>
     </FilePathRule>
   </RuleCollection>
+
+  <!-- Not enforcing MSI and Script rules -->
   <RuleCollection Type="Msi" EnforcementMode="NotConfigured" />
   <RuleCollection Type="Script" EnforcementMode="NotConfigured" />
 </AppLockerPolicy>
