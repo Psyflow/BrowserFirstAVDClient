@@ -12,6 +12,8 @@ $Script:File = [string]$myInvocation.MyCommand.Name
 [String]$Script:LogDir = Join-Path -Path $env:SystemRoot -ChildPath "Logs"
 $date = Get-Date -UFormat "%Y-%m-%d %H-%M-%S"
 $Script:LogName = [io.path]::GetFileNameWithoutExtension($Script:File) + "-$date.log"
+
+
 $GPODir = "$Script:Dir\gposettings"
 $ToolsDir = "$Script:Dir\Tools"
 $DirConfigurationScripts = "$Script:Dir\Scripts\Configuration"
@@ -19,79 +21,109 @@ $KioskDir = "$env:SystemDrive\KioskSettings"
 $ProvisioningPackagesDir = "$KioskDir\ProvisioningPackages"
 $RegKeysRestoreFile = "$KioskDir\RegKeyRestore.csv"
 $AppLockerRestoreFile = "$KioskDir\ApplockerPolicy.xml"
-# Event Log Information
-$EventLog = 'AVD Client Kiosk'
-$EventSource = 'Configuration Removal Script'
 
 #endregion Set Variables
 
 #region Restart Script in 64-bit powershell if necessary
 
-If ($ENV:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
-    $scriptArguments = $null
+If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSystem) {
     Try {
-        foreach($k in $PSBoundParameters.keys)
-        {
-            switch($PSBoundParameters[$k].GetType().Name)
-            {
-                "SwitchParameter" {if($PSBoundParameters[$k].IsPresent) { $scriptArguments += "-$k " } }
-                "String"          { $scriptArguments += "-$k `"$($PSBoundParameters[$k])`" " }
-                "Int32"           { $scriptArguments += "-$k $($PSBoundParameters[$k]) " }
-                "Boolean"         { $scriptArguments += "-$k `$$($PSBoundParameters[$k]) " }
-                "Version"          { $scriptArguments += "-$k `"$($PSBoundParameters[$k])`" " }
+        # Convert bound parameters into a PowerShell-compatible argument list
+        $Script:Args = @()
+        foreach ($k in $MyInvocation.BoundParameters.Keys) {
+            $paramValue = $MyInvocation.BoundParameters[$k]
+            switch ($paramValue.GetType().Name) {
+                "SwitchParameter" { if ($paramValue.IsPresent) { $Script:Args += "-$k" } }
+                "String"          { $Script:Args += "-$k `"$paramValue`"" }
+                "Int32"           { $Script:Args += "-$k $paramValue" }
+                "Boolean"         { $Script:Args += "-$k `$$paramValue" }
             }
         }
-        If ($null -ne $scriptArguments) {
-            $RunScript = Start-Process -FilePath "$env:WINDIR\SysNative\WindowsPowershell\v1.0\PowerShell.exe" -ArgumentList "-File `"$PSCommandPath`" $scriptArguments" -PassThru -Wait -NoNewWindow
-        } Else {
-            $RunScript = Start-Process -FilePath "$env:WINDIR\SysNative\WindowsPowershell\v1.0\PowerShell.exe" -ArgumentList "-File `"$PSCommandPath`"" -PassThru -Wait -NoNewWindow
+
+        # Relaunch in 64-bit PowerShell
+        $PowerShell64 = "$env:WINDIR\SysNative\WindowsPowerShell\v1.0\powershell.exe"
+        $ScriptArgsString = $Script:Args -Join " "
+
+        If ($ScriptArgsString) {
+            Start-Process -FilePath $PowerShell64 -ArgumentList "-File `"$($Script:FullName)`" $ScriptArgsString" -Wait -NoNewWindow
+        } 
+        Else {
+            Start-Process -FilePath $PowerShell64 -ArgumentList "-File `"$($Script:FullName)`"" -Wait -NoNewWindow
         }
     }
     Catch {
         Throw "Failed to start 64-bit PowerShell"
     }
-    Exit $RunScript.ExitCode
+    Exit
 }
 
 #endregion Restart Script in 64-bit powershell if necessary
 
 #region Functions
 
-Function Write-Log {
+function Write-Log {
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [string]
-        $EventLog = $EventLog,
-        [Parameter()]
-        [string]
-        $EventSource = $EventSource,
-        [Parameter()]
-        [string]
+        [string]$EventLog = 'Browser First AVD Kiosk',
+        [string]$EventSource = 'Remove Settings Script',
         [ValidateSet('Information','Warning','Error')]
-        $EntryType = 'Information',
-        [Parameter()]
-        [Int]
-        $EventID,
-        [Parameter()]
-        [string]
-        $Message
+        [string]$EntryType = 'Information',
+        [int]$EventId = 1000,
+        [string]$Message,
+        [switch]$WriteToConsole,
+        [switch]$Initialize
     )
-    If ($EntryType -eq 'Error') {
-        Write-Error $Message
-    } Elseif ($EntryType -eq 'Warning') {
-        Write-Warning -Message $Message
-    } Else {
-        Write-Output $Message
+
+    $LogFile = "C:\Logs\$EventLog.log"
+
+    if ($Initialize) {
+        $LogDir = Split-Path -Path $LogFile -Parent
+
+        if (-not [System.Diagnostics.EventLog]::SourceExists($EventSource)) {
+            try {
+                New-EventLog -LogName $EventLog -Source $EventSource
+            } catch {
+                Write-Warning "Could not create event source '$EventSource': $_"
+            }
+        }
+
+        if (-not (Test-Path -Path $LogDir)) {
+            New-Item -Path $LogDir -ItemType Directory -Force | Out-Null
+        }
+
+        if (-not (Test-Path -Path $LogFile)) {
+            New-Item -Path $LogFile -ItemType File -Force | Out-Null
+        }
+
+        return
     }
-    Write-EventLog -LogName $EventLog -Source $EventSource -EntryType $EntryType -EventId $EventId -Message $Message -ErrorAction SilentlyContinue
+
+    # Enforce Message as required if not initializing
+    if (-not $Message) {
+        throw "The -Message parameter is required unless -Initialize is specified."
+    }
+
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "$timestamp [$EntryType] EventID=$($EventId): $Message"
+
+    try {
+        Write-EventLog -LogName $EventLog -Source $EventSource -EntryType $EntryType -EventId $EventId -Message $Message -ErrorAction Stop
+    } catch {
+        "$timestamp [Error] Failed to write to EventLog: $($_.Exception.Message)`nOriginal message: $Message" | Out-File -FilePath $LogFile -Append
+    }
+
+    $logEntry | Out-File -FilePath $LogFile -Append
+
+    if ($WriteToConsole) {
+        Write-Host $logEntry
+    }
 }
 
 #endregion Functions
 
 #region Initialization and Logging
 
-New-EventLog -LogName $EventLog -Source $EventSource -ErrorAction SilentlyContinue
+Write-Log -Initialize
 
 If (-not (Test-Path $Script:LogDir)) {
     $null = New-Item -Path $Script:LogDir -ItemType Directory -Force
@@ -103,18 +135,6 @@ Write-Log -EntryType Information -EventId 5 -Message "Executing '$Script:FullNam
 
 #region Main Script
 
-# Removing Embedded Shells Configuration
-
-. "$DirConfigurationScripts\AssignedAccessWmiBridgeHelpers.ps1"
-If (Get-ShellLauncherConfiguration) {
-    Write-Log -EventId 6 -EntryType Information -Message "Removing Shell Launcher settings via WMI Bridge."
-    Clear-ShellLauncherConfiguration
-}
-
-If (Get-MultiAppKioskConfiguration) {
-    Write-Log -EventId 6 -EntryType Information -Message "Removing Multi-App Kiosk Configuration via WMI Bridge."
-    Clear-MultiAppKioskConfiguration
-}
 
 # Removing Non-Administrators Local GPO.
 $DirNonAdminsGPO = "$env:SystemRoot\System32\GroupPolicyUsers\S-1-5-32-545"
@@ -251,35 +271,13 @@ If ((Get-WindowsOptionalFeature -Online -FeatureName Client-KeyboardFilter).stat
     If (!$Reinstall) { Disable-WindowsOptionalFeature -Online -FeatureName Client-KeyboardFilter -NoRestart }
 }
 
-If (Get-LocalUser | Where-Object {$_.Name -eq 'KioskUser0'}) {
+# Remove OneDrive Settings
+Write-Log -EventId 23 -EntryType Information -Message "Removing OneDrive Settings."
+& "$DirConfigurationScripts\Apply-OneDriveSettings.ps1" -Remove
 
-    # Delete Kiosk User Profile if it exists. First Logoff Kiosk User.
-    try {
-        ## Find all sessions matching the specified username
-        $sessions = quser | Where-Object {$_ -match 'kioskuser0'}
-        If ($sessions) {
-            ## Parse the session IDs from the output
-            $sessionIds = ($sessions -split ' +')[2]
-            Write-Log -EventId 23 -EntryType Information -Message "Found $(@($sessionIds).Count) user login(s) on computer."
-            ## Loop through each session ID and pass each to the logoff command
-            $sessionIds | ForEach-Object {
-                Write-Log -EventId 24 -EntryType Information -Message "Logging off session id [$($_)]..."
-                logoff $_
-            }
-        }
-    } catch {
-        if ($_.Exception.Message -match 'No user exists') {
-            Write-Host "The user is not logged in."
-        } else {
-            throw $_.Exception.Message
-        }
-    }
-
-    Write-Log -EventId 25 -EntryType Information -Message "Deleting User Profile"
-    Get-CimInstance -Class Win32_UserProfile | Where-Object { $_.LocalPath.split('\')[-1] -eq 'KioskUser0' } | Remove-CimInstance -ErrorAction SilentlyContinue
-    Write-Log -EventId 26 -EntryType Information -Message "Removing 'KioskUser0' User Account."
-    Remove-LocalUser -Name 'KioskUser0'
-}
+# Remove Browser Settings
+Write-Log -EventId 24 -EntryType Information -Message "Removing Browser Settings."
+& "$DirConfigurationScripts\Apply-BrowserSettings.ps1" -Remove
 
 Write-Log -EventId 27 -EntryType Information -Message "**** Custom Kiosk Mode removed successfully ****"
 Stop-Transcript
