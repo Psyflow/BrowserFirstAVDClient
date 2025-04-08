@@ -44,7 +44,7 @@ if ($Remove) {
 
 } else {
 
-    New-Item -Path $oneDrivePolicyPath -Force | Out-Null
+    if(!($oneDrivePolicyPath)){New-Item -Path $oneDrivePolicyPath -Force | Out-Null}
     
     foreach ($key in $oneDrivePolicyKeys) {
         New-ItemProperty -Path $oneDrivePolicyPath -Name $key -PropertyType DWord -Value 1 -Force

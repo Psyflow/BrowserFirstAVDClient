@@ -64,8 +64,8 @@ If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
 function Write-Log {
     [CmdletBinding()]
     param (
-        [string]$EventLog = 'Browser First AVD Kiosk',
-        [string]$EventSource = 'Remove Settings Script',
+        [string]$EventLog,
+        [string]$EventSource,
         [ValidateSet('Information','Warning','Error')]
         [string]$EntryType = 'Information',
         [int]$EventId = 1000,
@@ -74,16 +74,20 @@ function Write-Log {
         [switch]$Initialize
     )
 
-    $LogFile = "C:\Logs\$EventLog.log"
-
+    # Use passed-in EventLog/Source or fall back to persisted ones
     if ($Initialize) {
+        # Save to script-level variables so they persist across calls
+        if ($EventLog)     { $script:PersistedEventLog = $EventLog }
+        if ($EventSource)  { $script:PersistedEventSource = $EventSource }
+
+        $LogFile = "C:\Logs\$($script:PersistedEventLog).log"
         $LogDir = Split-Path -Path $LogFile -Parent
 
-        if (-not [System.Diagnostics.EventLog]::SourceExists($EventSource)) {
+        if (-not [System.Diagnostics.EventLog]::SourceExists($script:PersistedEventSource)) {
             try {
-                New-EventLog -LogName $EventLog -Source $EventSource
+                New-EventLog -LogName $script:PersistedEventLog -Source $script:PersistedEventSource
             } catch {
-                Write-Warning "Could not create event source '$EventSource': $_"
+                Write-Warning "Could not create event source '$script:PersistedEventSource': $_"
             }
         }
 
@@ -98,16 +102,17 @@ function Write-Log {
         return
     }
 
-    # Enforce Message as required if not initializing
+    # Enforce Message requirement
     if (-not $Message) {
         throw "The -Message parameter is required unless -Initialize is specified."
     }
 
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "$timestamp [$EntryType] EventID=$($EventId): $Message"
+    $LogFile = "C:\Logs\$($script:PersistedEventLog).log"
 
     try {
-        Write-EventLog -LogName $EventLog -Source $EventSource -EntryType $EntryType -EventId $EventId -Message $Message -ErrorAction Stop
+        Write-EventLog -LogName $script:PersistedEventLog -Source $script:PersistedEventSource -EntryType $EntryType -EventId $EventId -Message $Message -ErrorAction Stop
     } catch {
         "$timestamp [Error] Failed to write to EventLog: $($_.Exception.Message)`nOriginal message: $Message" | Out-File -FilePath $LogFile -Append
     }
@@ -123,7 +128,7 @@ function Write-Log {
 
 #region Initialization and Logging
 
-Write-Log -Initialize
+Write-Log -Initialize -EventLog  'Browser First AVD Kiosk' -EventSource 'Remove Settings Script'
 
 If (-not (Test-Path $Script:LogDir)) {
     $null = New-Item -Path $Script:LogDir -ItemType Directory -Force

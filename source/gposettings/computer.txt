@@ -43,6 +43,11 @@ Computer
 Software\Policies\Microsoft\Windows\Windows Search
 AllowCortanaAboveLock
 DWORD:0
+; Disable Windows Copilot
+Computer
+Software\Policies\Microsoft\Windows\WindowsCopilot
+TurnOffWindowsCopilot
+DWORD:1
 ; Disable Search Location
 Computer
 Software\Policies\Microsoft\Windows\Windows Search
