@@ -1,7 +1,7 @@
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
 SettingsPageVisibility
-SZ:showonly:display
+SZ:showonly:display;sound;easeofaccess;personalization
 
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
@@ -12,3 +12,9 @@ User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\RestrictCpl
 1
 SZ:Microsoft.Display
+2
+SZ:Microsoft.Sound
+3
+SZ:Microsoft.EaseOfAccess
+4
+SZ:Microsoft.Personalization
