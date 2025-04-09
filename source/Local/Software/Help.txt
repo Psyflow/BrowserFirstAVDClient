@@ -1,0 +1,13 @@
+Instructions for Adding Additional Software
+
+For each new software you want to install or uninstall, create a separate .ps1 script in the
+same directory as InstallSoftware.ps1.
+
+Script Requirements:
+Each script should support the following:
+
+    Name:  The script shoul be named descriptively, e.g., ExampleSoftwareInstall.ps1.
+    Script: Place the Script in the Same Directory as the InstallSoftware.ps1 script
+    Files: The install files shoud be located within the same location as this script
+    Default: Script should run silently with all requiered install switches
+    Uninstall: Include a -remove switch and run silently with uninstall switches
