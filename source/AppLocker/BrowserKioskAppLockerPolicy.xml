@@ -42,8 +42,18 @@
   </RuleCollection>
 <!-- DLL Rules -->  
   <RuleCollection Type="Dll" EnforcementMode="NotConfigured" />
+  
 <!-- EXE Rules -->  
   <RuleCollection Type="exe" EnforcementMode="NotConfigured">
+
+    <!-- Allow WSCRIPT.EXE for Specialized Shortcuts -->
+    <FilePublisherRule Id="d1234567-89ab-cdef-0123-456789abcdef" Name="Allow WScript (Publisher)" Description="Allows WScript.exe for all users" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+        <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="WSCRIPT.EXE">
+          <BinaryVersionRange LowSection="*" HighSection="*" />
+        </FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
     
     <!-- File: explorer.exe -->
     <FilePublisherRule Id="b7a9d8e1-83f0-4a97-bc7d-2e2d1e4c9876" Name="Allow Explorer (Publisher)" UserOrGroupSid="S-1-1-0" Action="Allow">
