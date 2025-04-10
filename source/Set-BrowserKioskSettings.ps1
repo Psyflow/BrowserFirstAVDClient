@@ -108,7 +108,6 @@ If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
     Exit
 }
 
-
 $Script:FullName = $MyInvocation.MyCommand.Path
 $Script:File = $MyInvocation.MyCommand.Name
 $Script:Name=[System.IO.Path]::GetFileNameWithoutExtension($Script:File)
@@ -119,12 +118,12 @@ $DirAppLocker = Join-Path -Path $Script:Dir -ChildPath "AppLocker"
 $FileAppLockerClear = Join-Path -Path $DirAppLocker -ChildPath "ClearAppLockerPolicy.xml"
 $DirMultiAppSettings = Join-Path -Path $Script:Dir -ChildPath 'MultiAppConfigs'
 $DirProvisioningPackages = Join-Path -Path $Script:Dir -ChildPath "ProvisioningPackages"
-$DirStartMenu = Join-Path -Path $Script:Dir -ChildPath "StartMenu"
 $DirGPO = Join-Path -Path $Script:Dir -ChildPath "GPOSettings"
 $DirKiosk = Join-Path -Path $env:SystemDrive -ChildPath "KioskSettings"
 $DirRegKeys = Join-Path -Path $Script:Dir -ChildPath "RegistryKeys"
 $FileRegKeys = Join-Path -Path $DirRegKeys -ChildPath "RegKeys.csv"
 $DirTools = Join-Path -Path $Script:Dir -ChildPath "Tools"
+$DirCustomizations = Join-Path -Path $Script:Dir -ChildPath "Customizations"
 $DirUserLogos = Join-Path -Path $Script:Dir -ChildPath "UserLogos"
 $DirConfigurationScripts = Join-Path -Path $Script:Dir -ChildPath "Scripts\Configuration"
 $DirSchedTasksScripts = Join-Path -Path $Script:Dir -ChildPath "Scripts\ScheduledTasks"
@@ -428,33 +427,36 @@ If ($installAVDClient) {
 
 #region KioskSettings Directory
 
-#Create the KioskSettings Directory
-Write-Log -EntryType Information -EventId 40 -Message "Creating KioskSettings Directory at root of system drive."
-If (-not (Test-Path $DirKiosk)) {
-    New-Item -Path $DirKiosk -ItemType Directory -Force | Out-Null
-}
+# Set ACLs on Kiosk Settings Directory
+# Purpose: Prevent Non-Administrators from changing files (Defense in Depth)
 
-# Setting ACLs on the Kiosk Settings directory to prevent Non-Administrators from changing files. Defense in Depth.
 Write-Log -EntryType Information -EventId 41 -Message "Configuring Kiosk Directory ACLs"
+
+# Set owner to Builtin\Administrators
 $Group = New-Object System.Security.Principal.NTAccount("Builtin", "Administrators")
 $ACL = Get-ACL $DirKiosk
 $ACL.SetOwner($Group)
 Set-ACL -Path $DirKiosk -AclObject $ACL
+
+# Apply ACLs to key identities
 Update-ACL -Path $DirKiosk -Identity 'BuiltIn\Administrators' -FileSystemRights 'FullControl' -Type 'Allow'
 Update-ACL -Path $DirKiosk -Identity 'BuiltIn\Users' -FileSystemRights 'ReadAndExecute' -Type 'Allow'
 Update-ACL -Path $DirKiosk -Identity 'System' -FileSystemRights 'FullControl' -Type 'Allow'
+
+# Disable inheritance and remove existing inherited ACEs
 Update-ACLInheritance -Path $DirKiosk -DisableInheritance $true -PreserveInheritedACEs $false
 
+# Create ScheduledTasks Directory Under Kiosk (If Not Exists)
 $SchedTasksScriptsDir = Join-Path -Path $DirKiosk -ChildPath 'ScheduledTasks'
+
 If (-not (Test-Path $SchedTasksScriptsDir)) {
     $null = New-Item -Path $SchedTasksScriptsDir -ItemType Directory -Force
 }
+
+# Copy Scheduled Task Scripts
 Write-Log -EntryType Information -EventId 43 -Message "Copying Scheduled Task Scripts from '$DirSchedTasksScripts' to '$SchedTasksScriptsDir'"
-Get-ChildItem -Path $DirSchedTasksScripts -filter '*.*' | Copy-Item -Destination $SchedTasksScriptsDir -Force
-If ($Triggers -contains 'SessionDisconnect') {
-    $parentKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("SYSTEM\CurrentControlSet\Services\EventLog", $true)
-    $null = $parentKey.CreateSubKey("Microsoft-Windows-TerminalServices-RDPClient/Operational")
-}
+Get-ChildItem -Path $DirSchedTasksScripts -Filter '*.*' | Copy-Item -Destination $SchedTasksScriptsDir -Force
+
 #endregion KioskSettings Directory
 
 #region Provisioning Packages
@@ -481,11 +483,18 @@ ForEach ($Package in $ProvisioningPackages) {
 
 #endregion Provisioning Packages
 
+#region Install Applications
+New-Item -Path "$DirKiosk\Customizations" -ItemType Directory -Force | Out-Null
+Copy-Item -Path $DirCustomizations -Destination "$DirKiosk\Customizations" -Recurse -Force
+$ExitCode = & "$DirKiosk\Customizations\Software\InstallSoftware.ps1" -Uninstall:$false
+Write-Log -EntryType Information -EventID 46 -Message "Software installed with exitcode $ExitCode."
+
+& "$DirConfigurationScripts\Apply-UserShortcuts.ps1"
+
+#endregion Install Applications
+
 #region Start Menu
 
-$dirStartup = "$env:SystemDrive\Users\Default\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
-If (-not (Test-Path -Path $dirStartup)) {$null = New-Item -Path $dirStartup -ItemType Directory -Force}
-Copy-Item -Path "$ShortcutPath" -Destination $dirStartup -Force
 Write-Log -EntryType Information -EventId 52 -Message "Disabling the Start Button Right Click Menu for all users."
 # Set Default profile to hide Start Menu Right click
 $Groups = @(
@@ -498,7 +507,7 @@ foreach ($grp in $Groups) {
     $HideDir = Get-ItemProperty -Path ($WinXRoot -f $grp )
     $HideDir.Attributes = [System.IO.FileAttributes]::Hidden
 }
-        
+
 #endregion Start Menu
 
 #region User Logos
@@ -514,9 +523,6 @@ Get-ChildItem -Path $DirUserLogos | Copy-Item -Destination "$env:ProgramData\Mic
 
 #region Local GPO Settings
 
-& "$DirConfigurationScripts\Apply-BrowserSettings.ps1"
-& "$DirConfigurationScripts\Apply-OneDriveSettings.ps1"
-
 # Set Smartcard Removal Action to 1 (Lock Workstation)
 Set-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ScRemoveOption" -Value 1 -Type DWord
 
@@ -525,11 +531,6 @@ Set-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\
 $nonAdminsFile = 'nonadmins-MultiAppKiosk.txt'
 $null = cmd /c lgpo.exe /t "$DirGPO\$nonAdminsFile" '2>&1'
 Write-Log -EntryType Information -EventId 60 -Message "Configured basic Explorer settings for kiosk user via Non-Administrators Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
-
-If ($ShowDisplaySettings) {
-    $null = cmd /c lgpo.exe /t "$DirGPO\nonadmins-ShowDisplaySettings.txt" '2>&1'
-    Write-Log -EntryType Information -EventId 63 -Message "Restricted Settings App and Control Panel to allow only Display Settings for kiosk user via Non-Administrators Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
-}
 
 # Configure Feed URL for all Users
 $outfile = "$env:Temp\Users-AVDURL.txt"
@@ -625,28 +626,51 @@ Else {
 
 #region Applocker Policy 
 
-Write-Log -EntryType Information -EventId 110 -Message "Applying AppLocker Policy to disable Internet Explorer and Wordpad for the Kiosk User."
+Write-Log -EntryType Information -EventId 110 -Message "Applying AppLocker Policy to disable unauthorized apps for the Kiosk User."
 # If there is an existing applocker policy, back it up and store its XML for restore.
 # Else, copy a blank policy to the restore location.
 # Then apply the new AppLocker Policy
 $FileAppLockerKiosk = Join-Path -Path $DirAppLocker -ChildPath "BrowserKioskAppLockerPolicy.xml"
 
 [xml]$Policy = Get-ApplockerPolicy -Local -XML
-If ($Policy.AppLockerPolicy.RuleCollection) {
-    Get-ApplockerPolicy -Local -XML | out-file "$DirKiosk\ApplockerPolicy.xml" -force
-}
-Else {
-    Copy-Item "$FileAppLockerClear" -Destination "$DirKiosk\ApplockerPolicy.xml" -Force
-}
+If ($Policy.AppLockerPolicy.RuleCollection) {Get-ApplockerPolicy -Local -XML | out-file "$DirKiosk\ApplockerPolicy.xml" -force}
+Else {Copy-Item "$FileAppLockerClear" -Destination "$DirKiosk\ApplockerPolicy.xml" -Force}
+
 Set-AppLockerPolicy -XmlPolicy "$FileAppLockerKiosk"
 Write-Log -EntryType Information -EventId 111 -Message "Enabling and Starting Application Identity Service"
 Set-Service -Name AppIDSvc -StartupType Automatic -ErrorAction SilentlyContinue
 # Start the service if not already running
-If ((Get-Service -Name AppIDSvc).Status -ne 'Running') {
-    Start-Service -Name AppIDSvc
-}
+If ((Get-Service -Name AppIDSvc).Status -ne 'Running') {Start-Service -Name AppIDSvc}
 
 #endregion Applocker Policy
+
+#region Assigned Access
+
+Write-Log -EntryType Information -EventId 113 -Message "Starting Multi-App Kiosk Configuration Section for Assigned Access."
+. "$DirConfigurationScripts\AssignedAccessWmiBridgeHelpers.ps1"
+
+$configFile = "BrowserFirstKiosk.xml"
+$sourceFile = Join-Path -Path $DirMultiAppSettings -ChildPath $configFile
+$destFile = Join-Path $DirKiosk -ChildPath 'BrowserFirstKiosk.xml'
+
+Write-Log -EntryType Information -EventId 114 -Message "Configuration File = $configFile"
+Copy-Item -Path $sourceFile -Destination $destFile -Force
+
+try {
+    Set-MultiAppKioskConfiguration -FilePath $destFile
+    If (Get-MultiAppKioskConfiguration) {
+        Write-Log -EntryType Information -EventId 115 -Message "Multi-App Kiosk configuration successfully applied."
+    }
+    Else {
+        Write-Log -EntryType Error -EventId 116 -Message "Multi-App Kiosk configuration failed."
+        Exit 1        
+    }
+} catch {
+    Write-Log -EntryType Error -EventId 116 -Message "An error occurred while applying Multi-App Kiosk configuration: $($_.Exception.Message)"
+    Exit 1
+}
+
+#endregion Assigned Access
 
 #region Keyboard Filter
 Write-Log -EntryType Information -EventID 117 -Message "Enabling Keyboard filter."
@@ -700,47 +724,6 @@ if (Get-ScheduledTask | Where-Object { $_.TaskName -eq "$TaskName" }) {
     $ScriptExitCode = 1618
 }
 #endregion Keyboard Filter
-
-#region Explorer Settings
-# === CONFIGURATION ===
-$TaskName        = "(AVD Client) - NoDrives for Standard Users"
-$TaskDescription = "Sets the NoDrives policy in HKCU if the user is not an admin."
-$ScriptPath      = "$SchedTasksScriptsDir\Apply-ExplorerSettings.ps1"
-$RunAsUser       = "NT AUTHORITY\INTERACTIVE"   # Runs in user context
-
-# === EVENT LOG ===
-Write-Log -EntryType Information -EventId 118 -Message "Creating scheduled task: $TaskName"
-$EventLogSource  = "ConfigureNoDrives"
-$EventLogName    = "Application"
-if (-not [System.Diagnostics.EventLog]::SourceExists($EventLogSource)) {New-EventLog -LogName $EventLogName -Source $EventLogSource}
-
-# === CREATE TASK COMPONENTS ===
-$ScriptArgs = "-TaskName `"$TaskName`" -EventLog `"$EventLogName`" -EventSource `"$EventLogSource`""
-$trigger    = New-ScheduledTaskTrigger -AtLogOn
-$action     = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScriptPath`" $ScriptArgs"
-$principal  = New-ScheduledTaskPrincipal -UserId $RunAsUser -LogonType Interactive -RunLevel Limited
-$settings   = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries `
-    -DontStopIfGoingOnBatteries `
-    -ExecutionTimeLimit (New-TimeSpan -Minutes 1) `
-    -MultipleInstances IgnoreNew
-
-# === REGISTER THE TASK ===
-Register-ScheduledTask -TaskName $TaskName `
-    -Description $TaskDescription `
-    -Action $action `
-    -Trigger $trigger `
-    -Principal $principal `
-    -Settings $settings `
-    -Force
-
-# === CONFIRMATION ===
-if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
-    Write-EventLog -LogName $EventLogName -Source $EventLogSource -EventId 1001 -EntryType Information -Message "Scheduled task '$TaskName' created successfully."
-} else {
-    Write-EventLog -LogName $EventLogName -Source $EventLogSource -EventId 1002 -EntryType Error -Message "Failed to create scheduled task '$TaskName'."
-}
-#endregion Explorer Settings
 
 Write-Log -EntryType Information -EventId 150 -Message "Updating Group Policy"
 $gpupdate = Start-Process -FilePath 'GPUpdate' -ArgumentList '/force' -Wait -PassThru
