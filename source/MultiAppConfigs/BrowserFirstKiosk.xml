@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<AssignedAccessConfiguration xmlns="http://schemas.microsoft.com/AssignedAccess/2017/config" xmlns:v3="http://schemas.microsoft.com/AssignedAccess/2020/config" xmlns:v5="http://schemas.microsoft.com/AssignedAccess/2022/config">
+  <Profiles>
+    <Profile Id="{9A2A490F-10F6-4764-974A-43B19E722C23}">
+      <AllAppsList>
+        <AllowedApps>
+        
+          <!-- === Basic Apps === -->
+          <App DesktopAppPath="C:\Windows\explorer.exe" />
+          <App DesktopAppPath="%windir%\System32\wscript.exe" />
+          <App DesktopAppPath="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" />
+          <App DesktopAppPath="C:\Program Files\Microsoft OneDrive\OneDrive.exe" />
+          
+          <!-- === VDI Access Tools === -->
+          <App DesktopAppPath="C:\Program Files\Amazon WorkSpaces\Workspaces.exe" />
+          <App DesktopAppPath="%PROGRAMFILES%\Remote Desktop\msrdcw.exe" />
+          <App DesktopAppPath="%PROGRAMFILES%\Remote Desktop\msrdc.exe" />
+          <App DesktopAppPath="C:\Program Files (x86)\Citrix\ICA Client\wfcrun32.exe" />
+          <App DesktopAppPath="C:\Program Files (x86)\Citrix\SelfServicePlugin\SelfService.exe" />
+          <App DesktopAppPath="C:\Program Files (x86)\Citrix\ICA Client\concentr.exe" />
+          
+          <!-- === ACCESSIBILITY TOOLS === -->
+          <App AppUserModelId="windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" />
+          <App DesktopAppPath="C:\WINDOWS\system32\Narrator.exe" />
+          <App DesktopAppPath="C:\Windows\System32\osk.exe" />
+          <App DesktopAppPath="C:\Windows\System32\Magnify.exe" />
+
+        </AllowedApps>
+      </AllAppsList>
+      <v5:StartPins>
+        <![CDATA[
+          { "pinnedList":[
+            {"packagedAppId":"windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel"},
+            {"desktopAppLink":"C:\\Program Files (x86)\\Amazon WorkSpaces\\Workspaces.exe"},
+            {"desktopAppLink":"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"},
+            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Excel.lnk"},
+            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Word.lnk"},
+            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\PowerPoint.lnk"},
+            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Outlook.lnk"},
+            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Teams.lnk"},
+            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\OneDrive.lnk"}
+          ] }
+        ]]>
+      </v5:StartPins>
+      <Taskbar ShowTaskbar="true"/>
+    </Profile>
+  </Profiles>
+  <Configs>
+      <v3:GlobalProfile Id="{9A2A490F-10F6-4764-974A-43B19E722C23}"/>
+  </Configs>
+</AssignedAccessConfiguration>
