@@ -1,65 +1,215 @@
 ; Disable the First Logon Animation
+; Prevents the animation and tutorial that plays when a user logs in for the first time.
 Computer
 Software\Microsoft\Windows\CurrentVersion\Policies\System
 EnableFirstLogonAnimation
 DWORD:0
+
 ; Win11 - Disable Widgets
+; Disables the Widgets feature in Windows 11, removing the Widgets button from the taskbar.
 Computer
 Software\Policies\Microsoft\Dsh
 AllowNewsAndInterests
 DWORD:0
+
+; Disable USB Storage
+; Prevents users from using USB storage devices.
+Computer
+System\CurrentControlSet\Services\USBSTOR
+Start
+DWORD:4
+
 ; Remove Windows Consumer Features
+; Disables consumer-focused features like app suggestions and pre-installed apps (e.g., Candy Crush).
 Computer
 Software\Policies\Microsoft\Windows\CloudContent
 DisableWindowsConsumerFeatures
 DWORD:1
+
 ; Hide Recommended Section of Start Menu
+; Hides the "Recommended" section in the Start Menu, reducing clutter for users.
 Computer
 Software\Policies\Microsoft\Windows\Explorer
 HideRecommendedSection
 DWORD:1
+
 ; Disable Privacy Options on first logon
+; Prevents the privacy settings screen from appearing during the first logon experience.
 Computer
 Software\Policies\Microsoft\Windows\OOBE
 DisablePrivacyExperience
 DWORD:1
+
 ; Disable Nearby Sharing
+; Disables the Nearby Sharing feature, which allows users to share files with nearby devices.
 Computer
 Software\Policies\Microsoft\Windows\System
 EnableCdp
 DWORD:0
+
 ; Disable Feeds
+; Disables the Windows Feeds feature, which powers the News and Interests widget.
 Computer
 Software\Policies\Microsoft\Windows\Windows Feeds
 EnableFeeds
 DWORD:0
+
 ; Disable Cortana
+; Disables the Cortana virtual assistant, preventing it from running on the system.
 Computer
 Software\Policies\Microsoft\Windows\Windows Search
 AllowCortana
 DWORD:0
+
 ; Disable Cortana Above Lock
+; Prevents Cortana from being accessible on the lock screen.
 Computer
 Software\Policies\Microsoft\Windows\Windows Search
 AllowCortanaAboveLock
 DWORD:0
+
 ; Disable Windows Copilot
+; Disables the Windows Copilot feature, which integrates AI-powered assistance into the system.
 Computer
 Software\Policies\Microsoft\Windows\WindowsCopilot
 TurnOffWindowsCopilot
 DWORD:1
+
 ; Disable Search Location
+; Prevents Windows Search from using the device's location to provide location-based search results.
 Computer
 Software\Policies\Microsoft\Windows\Windows Search
 AllowSearchToUseLocation
 DWORD:0
-; Win11 - Fully Disable Search UI. GPO UI says only applicable to SE but works on Enterprise
+
+; Disable Indexing for All Other Locations
+; Prevents Windows Search from indexing specific paths, effectively disabling indexing for those locations.
 Computer
 Software\Policies\Microsoft\Windows\Windows Search
-DisableSearch
+PreventIndexingCertainPaths
+REG_MULTI_SZ: C:\;D:\;E:\;F:\
+
+; Enable OneDrive Integration in Search
+; Allows users to search their OneDrive files via Windows Search.
+Computer
+Software\Policies\Microsoft\Windows\Windows Search
+AllowCloudSearch
 DWORD:1
-; Win11 - Disable Search on TaskBar
+
+; Disable Indexing of File Types
+; Prevents specific file types from being indexed by Windows Search.
 Computer
 Software\Policies\Microsoft\Windows\Windows Search
-SearchOnTaskbarMode
+PreventIndexingCertainFileTypes
+REG_MULTI_SZ: .exe;.dll;.tmp;.log
+
+; Disable Search History
+; Prevents Windows Search from saving search history locally.
+Computer
+Software\Policies\Microsoft\Windows\Windows Search
+AllowSearchToSaveHistory
 DWORD:0
+
+; Configure OneDrive Policies
+; These settings control OneDrive behavior for all users on the system, including folder redirection, account configuration, and user experience.
+
+; Enable Files On-Demand
+; Ensures that OneDrive files are accessible without downloading them locally.
+Computer
+Software\Policies\Microsoft\OneDrive
+FilesOnDemandEnabled
+DWORD:1
+
+; Enable Silent Known Folder Move for Documents
+; Automatically redirects the Documents folder to OneDrive without user interaction.
+Computer
+Software\Policies\Microsoft\OneDrive
+KFMSilentOptInDocuments
+DWORD:1
+
+; Enable Silent Known Folder Move for Pictures
+; Automatically redirects the Pictures folder to OneDrive without user interaction.
+Computer
+Software\Policies\Microsoft\OneDrive
+KFMSilentOptInPictures
+DWORD:1
+
+; Enable Silent Account Configuration
+; Automatically configures OneDrive accounts for users without requiring manual sign-in.
+Computer
+Software\Policies\Microsoft\OneDrive
+SilentAccountConfig
+DWORD:1
+
+; Enable Files On-Demand
+; Allows users to access OneDrive files without downloading them locally, saving disk space.
+Computer
+Software\Policies\Microsoft\OneDrive
+FilesOnDemandEnabled
+DWORD:1
+
+; Disable First Run Experience Animation
+; Prevents the animation and tutorial from appearing when OneDrive is launched for the first time.
+Computer
+Software\Policies\Microsoft\OneDrive
+DisableFREAnimation
+DWORD:1
+
+; Disable First Run Experience Tutorial
+; Prevents the tutorial from appearing when OneDrive is launched for the first time.
+Computer
+Software\Policies\Microsoft\OneDrive
+DisableFRETutorial
+DWORD:1
+
+; Enable Shared Content Delete Confirmation
+; Prompts users for confirmation when deleting shared content in OneDrive.
+Computer
+Software\Policies\Microsoft\OneDrive
+SharedContentDeleteConfirmation
+DWORD:1
+
+; Disable Personal OneDrive Sync
+; Prevents users from syncing personal OneDrive accounts, restricting usage to organizational accounts.
+Computer
+Software\Policies\Microsoft\OneDrive
+DisablePersonalSync
+DWORD:1
+
+; Enable OneDrive Auto-Start
+; Ensures that OneDrive starts automatically when users log in.
+Computer
+Software\Policies\Microsoft\OneDrive
+EnableAutoStart
+DWORD:1
+
+; Disable First Delete Dialog
+; Prevents the dialog from appearing the first time a user deletes a file from OneDrive.
+Computer
+Software\Policies\Microsoft\OneDrive
+DisableFirstDeleteDialog
+DWORD:1
+
+; Configure Microsoft Edge Policies
+; These settings control the behavior of Microsoft Edge for all users on the system.
+
+; Hide First Run Experience
+; Prevents the first run experience and welcome page from appearing when Microsoft Edge is launched for the first time.
+Computer
+Software\Policies\Microsoft\Edge
+HideFirstRunExperience
+DWORD:1
+
+; Set User Data Directory
+; Specifies the directory where Microsoft Edge stores user data, such as profiles and settings.
+Computer
+Software\Policies\Microsoft\Edge
+UserDataDir
+SZ:${documents}\EdgeProfile
+
+; Set Default Download Directory
+; Specifies the default directory for downloads in Microsoft Edge.
+Computer
+Software\Policies\Microsoft\Edge
+DownloadDirectory
+SZ:${documents}\Downloads
