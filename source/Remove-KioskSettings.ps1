@@ -17,10 +17,15 @@ $Script:LogName = [io.path]::GetFileNameWithoutExtension($Script:File) + "-$date
 $GPODir = "$Script:Dir\gposettings"
 $ToolsDir = "$Script:Dir\Tools"
 $DirConfigurationScripts = "$Script:Dir\Scripts\Configuration"
+$DirCustomizations = "$Script:Dir\Customizations"
 $KioskDir = "$env:SystemDrive\KioskSettings"
-$ProvisioningPackagesDir = "$KioskDir\ProvisioningPackages"
 $RegKeysRestoreFile = "$KioskDir\RegKeyRestore.csv"
 $AppLockerRestoreFile = "$KioskDir\ApplockerPolicy.xml"
+
+foreach ($key in $Directories.Keys) {
+    Set-Variable -Name "Dir$key" -Value (Join-Path -Path $Script:Dir -ChildPath $Directories[$key])
+}
+
 
 #endregion Set Variables
 
@@ -140,6 +145,10 @@ Write-Log -EntryType Information -EventId 5 -Message "Executing '$Script:FullNam
 
 #region Main Script
 
+# App uninstallation
+& "$DirConfigurationScripts\Install-OneDrive.ps1" -Remove
+& "$DirCustomizations\Software\InstallSoftware.ps1" -Uninstall:$false
+
 
 # Removing Non-Administrators Local GPO.
 $DirNonAdminsGPO = "$env:SystemRoot\System32\GroupPolicyUsers\S-1-5-32-545"
@@ -221,18 +230,6 @@ If (Test-Path -Path $KioskDir) {
         }
     }
 
-    # Remove Provisioning Packages by finding the package files in the kiosksettings directory and removing them from the OS.
-    If (Test-Path -Path $ProvisioningPackagesDir) {
-        Write-Log -EventID 16 -EntryType Information -Message "Removing any provisioning packages previously applied by this configuration."
-        $ProvisioningPackages = Get-ChildItem -Path $ProvisioningPackagesDir -Filter '*.ppkg'
-        ForEach ($Package in $ProvisioningPackages) {
-            $PackageId = (Get-ProvisioningPackage -AllInstalledPackages | Where-Object {$_.PackageName -eq "$($package.BaseName)"}).PackageId
-            If ($PackageId) {
-                Remove-ProvisioningPackage -PackageId $PackageId
-            }
-        }
-    }
-
     # Restore User Logos
     If (Test-Path -Path "$kioskDir\UserLogos") {
         Write-Log -EntryType Information -EventId 17 -Message "Restoring User Logo Files"
@@ -260,6 +257,8 @@ ForEach ($DirShortcut in $DirsShortcuts) {
     }
 }
 
+# Remove CSP Policy Instances
+
 # Remove Custom Start Menu
 Get-ChildItem -Path "$env:SystemDrive\Users\Default\AppData\Local\Microsoft\Windows\Shell" -Filter 'LayoutModification.*' | Remove-Item -Force
 
@@ -275,14 +274,6 @@ If ((Get-WindowsOptionalFeature -Online -FeatureName Client-KeyboardFilter).stat
     & "$DirConfigurationScripts\Disable-KeyboardFilter.ps1"
     If (!$Reinstall) { Disable-WindowsOptionalFeature -Online -FeatureName Client-KeyboardFilter -NoRestart }
 }
-
-# Remove OneDrive Settings
-Write-Log -EventId 23 -EntryType Information -Message "Removing OneDrive Settings."
-& "$DirConfigurationScripts\Apply-OneDriveSettings.ps1" -Remove
-
-# Remove Browser Settings
-Write-Log -EventId 24 -EntryType Information -Message "Removing Browser Settings."
-& "$DirConfigurationScripts\Apply-BrowserSettings.ps1" -Remove
 
 Write-Log -EventId 27 -EntryType Information -Message "**** Custom Kiosk Mode removed successfully ****"
 Stop-Transcript

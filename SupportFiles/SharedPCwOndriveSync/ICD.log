@@ -1,0 +1,49 @@
+4/18/2025 5:23:51 AM Info Project 'SharedPCwOneDriveSync' created successfully and added to workspace
+4/18/2025 5:24:04 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#enablesharedpcmodewithonedrivesync
+4/18/2025 5:24:11 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:13 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:15 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:16 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:16 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:17 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:19 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:21 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:24 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#policycustomization
+4/18/2025 5:24:28 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#enablesharedpcmode
+4/18/2025 5:24:29 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#enablesharedpcmodewithonedrivesync
+4/18/2025 5:24:30 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:33 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:33 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:34 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:34 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:34 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:34 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:35 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:36 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:43 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:24:44 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:25:00 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:25:36 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:25:52 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:25:59 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:26:03 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:26:08 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:26:16 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:26:17 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:26:23 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:26:23 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:26:25 AM Info Navigating to URI https://docs.microsoft.com/windows/configuration/wcd/wcd-sharedpc#accountmanagement
+4/18/2025 5:26:57 AM Info Start Provisioning package Build for Project: SharedPCwOneDriveSync
+4/18/2025 5:27:48 AM Info Exporting customizations as a Provisioning Package to 'C:\Users\Silas\AppData\Local\Temp\ICD_20250418-052748-407_20304.4_1899863541.1'
+4/18/2025 5:27:48 AM Info Adding runtime settings to Provisioning Package
+4/18/2025 5:27:48 AM Info CreateTempDirectory: Create directory: C:\Users\Silas\AppData\Local\Temp\ICD_20250418-052748-452_20304.4_795612206.2
+4/18/2025 5:27:48 AM Info provxml writer, path = C:\Users\Silas\AppData\Local\Temp\ICD_20250418-052748-452_20304.4_795612206.2\Prov\RunTime\0__SharedPC.provxml
+4/18/2025 5:27:48 AM Info Adding deployment settings to Provisioning Package
+4/18/2025 5:27:48 AM Info Adding file assets to Provisioning Package
+4/18/2025 5:27:48 AM Info CopyFile: Source path: C:\Users\Silas\AppData\Local\Temp\ICD_20250418-052748-565_20304.4_679719671.cat, Target path: C:\Users\Silas\OneDrive\Documents\GitHub\AVDClientKiosk\source\Provisioning\SharedPCwOneDriveSync.cat
+4/18/2025 5:27:48 AM Info CopyFile: File 'C:\Users\Silas\OneDrive\Documents\GitHub\AVDClientKiosk\source\Provisioning\SharedPCwOneDriveSync.ppkg' exist and called with overwrite
+4/18/2025 5:27:48 AM Info CopyFile: Source path: C:\Users\Silas\AppData\Local\Temp\ICD_20250418-052748-407_20304.4_1899863541.1, Target path: C:\Users\Silas\OneDrive\Documents\GitHub\AVDClientKiosk\source\Provisioning\SharedPCwOneDriveSync.ppkg
+4/18/2025 5:27:48 AM Info DeleteFile: File '' does not exist
+4/18/2025 5:27:48 AM Info DeleteFile: File 'C:\Users\Silas\AppData\Local\Temp\ICD_20250418-052748-407_20304.4_1899863541.1' does not exist
+4/18/2025 5:27:48 AM Info Media Creation Build Success page
+4/18/2025 5:27:50 AM Info Build workflow finished.

@@ -42,7 +42,9 @@ if ($Remove) {
     $shortcut = $wshell.CreateShortcut($shortcuts["OneDrive"])
     $shortcut.TargetPath = "explorer.exe"
     $shortcut.Arguments = "shell:OneDrive"
-    $shortcut.IconLocation = "$env:SystemRoot\System32\OneDrive.ico"
+    $shortcut.IconLocation = "$IconPath\OneDrive.ico"
+    $shortcut.Description = "OneDrive"
+    $shortcut.Hotkey = "Ctrl+Shift+O"
     $shortcut.Save()
     Write-Host "OneDrive shortcut created successfully."
 

@@ -336,7 +336,7 @@ Function Get-InternetFile {
                 Return $OutputFile
             }
             Else {
-                Throw "$($CmdletName): Download failed�file not found after download attempt."
+                Throw "$($CmdletName): Download failed file not found after download attempt."
             }
         }
         Catch {
@@ -731,5 +731,4 @@ If($OS -like "Windows 1*"){
     Reg.exe ADD "HKLM\SOFTWARE\Microsoft\Cryptography\Wintrust\Config" -v EnableCertPaddingCheck -d 1 -t REG_DWORD -f
     }
 
-Remove-Item -Path $OutputDir -Recurse -Force
 Stop-Transcript

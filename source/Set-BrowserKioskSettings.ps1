@@ -75,8 +75,16 @@ param (
     [version]$Version = '1.0.0'
 )
 
+# Check if the OS is Windows IoT Enterprise
+$OS = Get-WmiObject -Class Win32_OperatingSystem
+If (-not ($OS.Caption -match "Windows 11 IoT Enterprise")) {
+    Write-Log -EntryType Error -EventId 0 -Message "This script is only supported on Windows 11 IoT Enterprise. Exiting."
+    Exit 1
+}
+
 # Restart in 64-Bit PowerShell if not already running in 64-bit mode
 # primarily designed to support Microsoft Endpoint Manager application deployment
+
 If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSystem) {
     Try {
         # Convert bound parameters into a PowerShell-compatible argument list
@@ -108,33 +116,51 @@ If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
     Exit
 }
 
+Write-Output "*********************************"
+Write-Output "Setting Script Variables"
+Write-Output "*********************************"
+
 $Script:FullName = $MyInvocation.MyCommand.Path
 $Script:File = $MyInvocation.MyCommand.Name
 $Script:Name=[System.IO.Path]::GetFileNameWithoutExtension($Script:File)
 $Script:Dir = Split-Path $Script:FullName
 
-# Set Source Directories and supporting files
-$DirAppLocker = Join-Path -Path $Script:Dir -ChildPath "AppLocker"
-$FileAppLockerClear = Join-Path -Path $DirAppLocker -ChildPath "ClearAppLockerPolicy.xml"
-$DirMultiAppSettings = Join-Path -Path $Script:Dir -ChildPath 'MultiAppConfigs'
-$DirProvisioningPackages = Join-Path -Path $Script:Dir -ChildPath "ProvisioningPackages"
-$DirGPO = Join-Path -Path $Script:Dir -ChildPath "GPOSettings"
-$DirKiosk = Join-Path -Path $env:SystemDrive -ChildPath "KioskSettings"
-$DirRegKeys = Join-Path -Path $Script:Dir -ChildPath "RegistryKeys"
-$FileRegKeys = Join-Path -Path $DirRegKeys -ChildPath "RegKeys.csv"
-$DirTools = Join-Path -Path $Script:Dir -ChildPath "Tools"
-$DirCustomizations = Join-Path -Path $Script:Dir -ChildPath "Customizations"
-$DirUserLogos = Join-Path -Path $Script:Dir -ChildPath "UserLogos"
-$DirConfigurationScripts = Join-Path -Path $Script:Dir -ChildPath "Scripts\Configuration"
-$DirSchedTasksScripts = Join-Path -Path $Script:Dir -ChildPath "Scripts\ScheduledTasks"
 
-# Find LTSC OS (and Windows IoT Enterprise)
-$OS = Get-WmiObject -Class Win32_OperatingSystem
+# Set source directory and variables for supporting folders
+$DirKiosk = "$env:SystemDrive\KioskSettings"
+
+$Directories = @{
+    "AppConfigs"            = "AppConfigs"
+    "Customizations"        = "Customizations"
+    "GPO"                   = "GPOSettings"
+    "Provisioning"          = "Provisioning"
+    "RegistryKeys"          = "RegistryKeys"
+    "Tools"                 = "Tools"
+    "Icons"                 = "Icons"
+    "UserLogos"             = "UserLogos"
+    "ConfigurationScripts"  = "Scripts\Configuration"
+    "SchedTasksScripts"     = "Scripts\ScheduledTasks"
+}
+
+foreach ($Name in $Directories.Keys) {
+    Set-Variable -Name "Dir$Name" -Value (Join-Path -Path $DirKiosk -ChildPath $Directories[$Name])
+    Get-Variable -Name "Dir$Name"
+}
+
+$FileAppLockerClear = Join-Path -Path $DirAppConfigs -ChildPath "ClearAppLockerPolicy.xml"
+$FileRegKeys = Join-Path -Path $DirRegistryKeys -ChildPath "RegKeys.csv"
+
+Get-Variable -Name "Script*"
+Get-Variable -Name "Dir*"
+Get-Variable -Name "File*"
 
 # Set AVD feed subscription Url.
 If ($EnvironmentAVD -eq 'AzureUSGovernment') {$SubscribeUrl = 'https://rdweb.wvd.azure.us'}
 Else {$SubscribeUrl = 'https://client.wvd.microsoft.com'}
-  
+Get-Variable -Name "SubscribeUrl"
+
+Write-Log -EntryType Information -EventId 10 -Message "Using Subscribe URL: $SubscribeUrl"
+
 # Set default exit code to 0
 $ScriptExitCode = 0
 
@@ -168,78 +194,60 @@ Function Get-PendingReboot {
     .NOTES
     #>
     Try {
-        ## Setting pending values to false to cut down on the number of else statements
         $RebootPending = $false
         $CompPendRen = $false
         $PendFileRename = $false
         $SCCM = $false
-
-        ## Setting CBSRebootPend to null since not all versions of Windows has this value
         $CBSRebootPend = $null
 
-        ## Making registry connection to the local/remote computer
         $HKLM = [UInt32] "0x80000002"
         $WMI_Reg = [WMIClass] "\\.\root\default:StdRegProv"
-						
-        ## query the CBS Reg Key
-	    
+
+        # Check CBS Reboot Pending
         $RegSubKeysCBS = $WMI_Reg.EnumKey($HKLM, "SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\")
-        $CBSRebootPend = $RegSubKeysCBS.sNames -contains "RebootPending"		
-	    							
-        ## Query WUAU from the registry
+        $CBSRebootPend = $RegSubKeysCBS.sNames -contains "RebootPending"
+        
+        # Check Windows Update Reboot Required
         $RegWUAURebootReq = $WMI_Reg.EnumKey($HKLM, "SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\")
         $WUAURebootReq = $RegWUAURebootReq.sNames -contains "RebootRequired"
-						
-        ## Query PendingFileRenameOperations from the registry
+        
+        # Check Pending File Rename Operations
         $RegSubKeySM = $WMI_Reg.GetMultiStringValue($HKLM, "SYSTEM\CurrentControlSet\Control\Session Manager\", "PendingFileRenameOperations")
         $RegValuePFRO = $RegSubKeySM.sValue
-
-        ## Query JoinDomain key from the registry - These keys are present if pending a reboot from a domain join operation
-        $Netlogon = $WMI_Reg.EnumKey($HKLM, "SYSTEM\CurrentControlSet\Services\Netlogon").sNames
-        $PendDomJoin = ($Netlogon -contains 'JoinDomain') -or ($Netlogon -contains 'AvoidSpnSet')
-
-        ## Query ComputerName and ActiveComputerName from the registry
-        $ActCompNm = $WMI_Reg.GetStringValue($HKLM, "SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName\", "ComputerName")            
-        $CompNm = $WMI_Reg.GetStringValue($HKLM, "SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName\", "ComputerName")
-
-        If (($ActCompNm -ne $CompNm) -or $PendDomJoin) {
-            $CompPendRen = $true
-        }
-						
-        ## If PendingFileRenameOperations has a value set $RegValuePFRO variable to $true
-        If ($RegValuePFRO) {
-            $PendFileRename = $true
-        }
-
-        ## Determine SCCM 2012 Client Reboot Pending Status
-        ## To avoid nested 'If' statements and unneeded WMI calls to determine If the CCM_ClientUtilities class exist, setting EA = 0
+        If ($RegValuePFRO) {$PendFileRename = $true} else {$PendFileRename = $false}
         
-        ## Try CCMClientSDK
+        # Check Computer Rename or Domain Join
+        $ActCompNm = $WMI_Reg.GetStringValue($HKLM, "SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName\", "ComputerName")
+        $CompNm = $WMI_Reg.GetStringValue($HKLM, "SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName\", "ComputerName")
+        $CompPendRen = ($ActCompNm -ne $CompNm)
+        
+        # Check SCCM Client Reboot Pending
         Try {
-            $CCMClientSDK = Invoke-WmiMethod -ComputerName LocalHost -Namespace 'ROOT\ccm\ClientSDK' -Class 'CCM_ClientUtilities' -Name DetermineIfRebootPending -ErrorAction 'Stop'
+            $CCMClientSDK = Invoke-WmiMethod -Namespace 'ROOT\ccm\ClientSDK' -Class 'CCM_ClientUtilities' -Name DetermineIfRebootPending -ErrorAction Stop
+            $SCCM = $CCMClientSDK.IsHardRebootPending -or $CCMClientSDK.RebootPending
+        } Catch {
+            $SCCM = $false
         }
-        Catch {
-            $CCMClientSDK = $null
+        
+
+        # Determine if a reboot is pending
+        If ($CompPendRen -or $CBSRebootPend -or $WUAURebootReq -or $SCCM -or $PendFileRename) {
+            $RebootPending = $true
         }
 
-        If ($CCMClientSDK) {
-            If ($CCMClientSDK.ReturnValue -ne 0) {
-                Write-Warning "Error: DetermineIfRebootPending returned error code $($CCMClientSDK.ReturnValue)"          
-            }
-            If ($CCMClientSDK.IsHardRebootPending -or $CCMClientSDK.RebootPending) {
-                $SCCM = $true
-            }
+        Return @{
+            RebootPending = $RebootPending
+            CBSRebootPend = $CBSRebootPend
+            WUAURebootReq = $WUAURebootReq
+            PendFileRename = $PendFileRename
+            CompPendRen = $CompPendRen
+            SCCM = $SCCM
         }
-        Else {
-            $SCCM = $False
-        }
-        If ($CompPendRen -or $CBSRebootPend -or $WUAURebootReq -or $SCCM -or $PendFileRename) { $RebootPending = $true }
-        Return $RebootPending
-
     }
     Catch {
-        Write-Warning "$_"				
-    }						
+        Write-Warning "Error checking pending reboot status: $_"
+        Return $false
+    }
 }
 
 function Update-ACL {
@@ -297,6 +305,7 @@ function Update-ACLInheritance {
     }
 
 }
+
 function Write-Log {
     [CmdletBinding()]
     param (
@@ -365,11 +374,13 @@ function Write-Log {
 #region Initialization
 
 Write-Log -Initialize -EventLog "Browser First AVD Kiosk" -EventSource "Configuration Script"
-Write-Log -EntryType Information -EventId 1 -Message "Executing '$Script:FullName'."
-Write-Log -EntryType Information -EventId 2 -Message "Running on $($OS.Caption) version $($OS.Version)."
+Write-Log -EntryType Information -EventId 2 -Message "Executing '$Script:FullName'."
+Write-Log -EntryType Information -EventId 3 -Message "Running on $($OS.Caption) version $($OS.Version)."
 
-If (Get-PendingReboot) {
-    Write-Log -EntryType Error -EventId 0 -Message "There is a reboot pending. This application cannot be installed when a reboot is pending.`nRebooting the computer in 15 seconds."
+$Reboot = Get-PendingReboot
+
+If ($Reboot.RebootPending) {
+    Write-Log -EntryType Error -EventId 0 -Message "There is a reboot pending for $Reboot. This application cannot be installed when a reboot is pending.`nRebooting the computer in 15 seconds."
     Start-Process -FilePath 'shutdown.exe' -ArgumentList '/r /t 15'
     Exit 3010
 }
@@ -387,33 +398,28 @@ $TaskschdLog.SaveChanges()
 #region Remove Previous Versions
 
 # Run Removal Script first in the event that a previous version is installed or in the event of a failed installation.
-Write-Log -EntryType Information -EventId 3 -Message 'Running removal script in case of previous installs or failures.'
+Write-Log -EntryType Information -EventId 4 -Message 'Running removal script in case of previous installs or failures.'
 & "$Script:Dir\Remove-KioskSettings.ps1" -Reinstall
 
 #endregion Previous Version Removal
 
-#region Remove Apps
+#region Copy Files
+# Create the KioskSettings directory if it doesn't exist
+New-Item -Path $DirKiosk -ItemType Directory -Force | Out-Null
 
-# Remove Per-User installation of OneDrive
-If (Test-Path -Path "$env:SystemRoot\Syswow64\onedrivesetup.exe") {
-    Write-Log -EntryType Information -EventId 26 -Message "Removing Per-User installation of OneDrive."
-    Start-Process -FilePath "$env:SystemRoot\Syswow64\onedrivesetup.exe" -ArgumentList "/uninstall" -Wait -ErrorAction SilentlyContinue
+# Get all top-level items, exclude the .vs folder
+Get-ChildItem -Path $Script:Dir -Directory -Exclude '.vs' | ForEach-Object {
+    $sourceFolder = $_.FullName
+    $targetFolder = Join-Path $DirKiosk $_.Name
+    Copy-Item -Path $sourceFolder -Destination $targetFolder -Recurse
+    Write-Log -EntryType Information -EventId 1 -Message "Copied $sourceFolder to $targetFolder "
 }
 
-#endregion Remove Apps
-
-#region STIGs
-
-If ($ApplySTIGs) {
-    Write-Log -EntryType Information -EventId 27 -Message "Running Script to apply the latest STIG group policy settings via LGPO for Windows 10, Internet Explorer, Microsoft Edge, Windows Firewall, and Defender AntiVirus."
-    & "$DirConfigurationScripts\Apply-LatestSTIGs.ps1"
-    
-    Write-Log -EntryType Information -EventId 28 -Message "Running Script to allow PKU2U online identities required for AAD logon."
-    & "$DirConfigurationScripts\Apply-STIGDirectSignOnExceptions.ps1"  
-}
-
-#endregion STIGs
-
+#endregion Copy Files
+Write-Output ""
+Write-Output "*********************************"
+Write-Output "Installing Applications"
+Write-Output "*********************************"
 #region Install AVD Client
 
 If ($installAVDClient) {
@@ -425,12 +431,32 @@ If ($installAVDClient) {
 
 #endregion Install AVD Client
 
-#region KioskSettings Directory
+#region OneDrive 
 
+# Remove Per-User installation of OneDrive
+& "$DirConfigurationScripts\Install-OneDrive.ps1" -Remove
+
+# Install system installation of OneDrive
+& "$DirConfigurationScripts\Install-OneDrive.ps1"
+
+ #endregion Remove Apps
+
+#region STIGs
+
+If ($ApplySTIGs) {
+    Write-Log -EntryType Information -EventId 20 -Message "Running Script to apply the latest STIG group policy settings via LGPO for Windows 10, Internet Explorer, Microsoft Edge, Windows Firewall, and Defender AntiVirus."
+    & "$DirConfigurationScripts\Apply-LatestSTIGs.ps1"
+    
+    Write-Log -EntryType Information -EventId 21 -Message "Running Script to allow PKU2U online identities required for AAD logon."
+    & "$DirConfigurationScripts\Apply-STIGDirectSignOnExceptions.ps1"  
+}
+
+#endregion STIGs
+
+#region KioskSettings Directory
 # Set ACLs on Kiosk Settings Directory
 # Purpose: Prevent Non-Administrators from changing files (Defense in Depth)
-
-Write-Log -EntryType Information -EventId 41 -Message "Configuring Kiosk Directory ACLs"
+Write-Log -EntryType Information -EventId 30 -Message "Configuring Kiosk Directory ACLs"
 
 # Set owner to Builtin\Administrators
 $Group = New-Object System.Security.Principal.NTAccount("Builtin", "Administrators")
@@ -445,57 +471,43 @@ Update-ACL -Path $DirKiosk -Identity 'System' -FileSystemRights 'FullControl' -T
 
 # Disable inheritance and remove existing inherited ACEs
 Update-ACLInheritance -Path $DirKiosk -DisableInheritance $true -PreserveInheritedACEs $false
-
-# Create ScheduledTasks Directory Under Kiosk (If Not Exists)
-$SchedTasksScriptsDir = Join-Path -Path $DirKiosk -ChildPath 'ScheduledTasks'
-
-If (-not (Test-Path $SchedTasksScriptsDir)) {
-    $null = New-Item -Path $SchedTasksScriptsDir -ItemType Directory -Force
-}
-
-# Copy Scheduled Task Scripts
-Write-Log -EntryType Information -EventId 43 -Message "Copying Scheduled Task Scripts from '$DirSchedTasksScripts' to '$SchedTasksScriptsDir'"
-Get-ChildItem -Path $DirSchedTasksScripts -Filter '*.*' | Copy-Item -Destination $SchedTasksScriptsDir -Force
-
 #endregion KioskSettings Directory
 
-#region Provisioning Packages
+#region Provisioning Package
+Write-Output ""
+Write-Output "*********************************"
+Write-Output "Installing Provisioning Packages"
+Write-Output "*********************************"
+
+. "$DirConfigurationScripts\AssignedAccessWmiBridgeHelpers.ps1"
 
 $ProvisioningPackages = @()
 Write-Log -EntryType Information -EventId 44 -Message "Adding Provisioning Package to enable SharedPC mode"
-$ProvisioningPackages += (Get-ChildItem -Path $DirProvisioningPackages | Where-Object { $_.Name -like '*SharedPC*' }).FullName
+$ProvisioningPackages += (Get-ChildItem -Path $DirProvisioning).FullName
 
-# Installing provisioning packages. Currently only one is included to hide the pinned items on the left of the Start Menu.
-# No GPO settings are available to do this.
-Write-Log -EntryType Information -EventId 45 -Message "Adding Provisioning Package to remove pinned items from Start Menu"
-$ProvisioningPackages += (Get-ChildItem -Path $DirProvisioningPackages | Where-Object { $_.Name -like '*PinnedFolders*' }).FullName
-
-If (-not $ShowDisplaySettings) {
-        $ProvisioningPackages += (Get-ChildItem -Path $DirProvisioningPackages | Where-Object { $_.Name -like '*Settings*' }).FullName
-    }
-
-New-Item -Path "$DirKiosk\ProvisioningPackages" -ItemType Directory -Force | Out-Null
 ForEach ($Package in $ProvisioningPackages) {
-    Copy-Item -Path $Package -Destination "$DirKiosk\ProvisioningPackages" -Force
     Write-Log -EntryType Information -EventID 46 -Message "Installing $($Package)."
-    Install-ProvisioningPackage -PackagePath $Package -ForceInstall -QuietInstall
+    Install-ProvisioningPackage -PackagePath $Package -ForceInstall -QuietInstall |Select-Object Packagename, PackagePath, IsInstalled, InstallStatus
 }
+#endregion Provisioning Package
 
-#endregion Provisioning Packages
+#region Applications
 
-#region Install Applications
-New-Item -Path "$DirKiosk\Customizations" -ItemType Directory -Force | Out-Null
-Copy-Item -Path $DirCustomizations -Destination "$DirKiosk\Customizations" -Recurse -Force
-$ExitCode = & "$DirKiosk\Customizations\Software\InstallSoftware.ps1" -Uninstall:$false
-Write-Log -EntryType Information -EventID 46 -Message "Software installed with exitcode $ExitCode."
+#Remove Built-in Apps
+& "$DirConfigurationScripts\Remove-BuiltinApps.ps1"
 
-& "$DirConfigurationScripts\Apply-UserShortcuts.ps1"
+#Remove Install Custom Apps
+$ExitCode = & "$DirCustomizations\Software\InstallSoftware.ps1" -Uninstall:$false
+Write-Log -EntryType Information -EventID 50 -Message "Software installed with exitcode $ExitCode."
 
-#endregion Install Applications
+& "$DirConfigurationScripts\Apply-UserShortcuts.ps1" -Iconpath "$DirKiosk\Icons" -Commercial
+Write-Log -EntryType Information -EventID 51 -Message "Desktops Shortcuts applied"
+
+#endregion Applications
 
 #region Start Menu
 
-Write-Log -EntryType Information -EventId 52 -Message "Disabling the Start Button Right Click Menu for all users."
+Write-Log -EntryType Information -EventId 60 -Message "Disabling the Start Button Right Click Menu for all users."
 # Set Default profile to hide Start Menu Right click
 $Groups = @(
     "Group1",
@@ -513,10 +525,10 @@ foreach ($grp in $Groups) {
 #region User Logos
 
 $null = cmd /c lgpo.exe /t "$DirGPO\computer-userlogos.txt" '2>&1'
-Write-Log -EntryType Information -EventId 55 -Message "Configured User Logos to use default via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
-Write-Log -EntryType Information -EventId 56 -Message "Backing up current User Logo files to '$DirKiosk\UserLogos'."
+Write-Log -EntryType Information -EventId 61 -Message "Configured User Logos to use default via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
+Write-Log -EntryType Information -EventId 62 -Message "Backing up current User Logo files to '$DirKiosk\UserLogos'."
 Copy-Item -Path "$env:ProgramData\Microsoft\User Account Pictures" -Destination "$DirKiosk\UserLogos" -Force
-Write-Log -EntryType Information -EventId 57 -Message "Copying User Logo files to '$env:ProgramData\Microsoft\User Account Pictures'."
+Write-Log -EntryType Information -EventId 63 -Message "Copying User Logo files to '$env:ProgramData\Microsoft\User Account Pictures'."
 Get-ChildItem -Path $DirUserLogos | Copy-Item -Destination "$env:ProgramData\Microsoft\User Account Pictures" -Force
 
 #endregion User Logos
@@ -524,13 +536,13 @@ Get-ChildItem -Path $DirUserLogos | Copy-Item -Destination "$env:ProgramData\Mic
 #region Local GPO Settings
 
 # Set Smartcard Removal Action to 1 (Lock Workstation)
-Set-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ScRemoveOption" -Value 1 -Type DWord
+Set-ItemProperty -Path  "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ScRemoveOption" -Value 1
 
 # Apply Non-Admin GPO settings
 
 $nonAdminsFile = 'nonadmins-MultiAppKiosk.txt'
 $null = cmd /c lgpo.exe /t "$DirGPO\$nonAdminsFile" '2>&1'
-Write-Log -EntryType Information -EventId 60 -Message "Configured basic Explorer settings for kiosk user via Non-Administrators Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
+Write-Log -EntryType Information -EventId 70 -Message "Configured basic Explorer settings for kiosk user via Non-Administrators Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
 
 # Configure Feed URL for all Users
 $outfile = "$env:Temp\Users-AVDURL.txt"
@@ -538,11 +550,11 @@ $sourceFile = Join-Path -Path $DirGPO -ChildPath 'users-AutoSubscribe.txt'
 
 (Get-Content -Path $sourceFile).Replace('<url>', $SubscribeUrl) | Out-File $outfile
 $null = cmd /c lgpo.exe /t "$outfile" '2>&1'
-Write-Log -EntryType Information -EventId 70 -Message "Configured AVD Feed URL for all users via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
+Write-Log -EntryType Information -EventId 71 -Message "Configured AVD Feed URL for all users via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
 
 # Disable Cortana, Search, Feeds, and Logon Animations. These are computer settings only.
 $null = cmd /c lgpo.exe /t "$DirGPO\Computer.txt" '2>&1'
-Write-Log -EntryType Information -EventId 75 -Message "Disabled Cortana search, feeds, and login animations via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
+Write-Log -EntryType Information -EventId 72 -Message "Disabled Cortana search, feeds, and login animations via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
 
 #endregion Local GPO Settings
 
@@ -550,14 +562,14 @@ Write-Log -EntryType Information -EventId 75 -Message "Disabled Cortana search, 
 
 # update the Default User Hive to Hide the search button and task view icons on the taskbar.
 $null = cmd /c REG LOAD "HKLM\Default" "$env:SystemDrive\Users\default\ntuser.dat" '2>&1'
-Write-Log -EntryType Information -EventId 95 -Message "Loaded Default User Hive Registry Keys via Reg.exe.`nReg.exe Exit Code: [$LastExitCode]"
+Write-Log -EntryType Information -EventId 73 -Message "Loaded Default User Hive Registry Keys via Reg.exe.`nReg.exe Exit Code: [$LastExitCode]"
 
 # Import registry keys file
-Write-Log -EntryType Information -EventId 96 -Message "Loading Registry Keys from CSV file for modification of default user hive."
+Write-Log -EntryType Information -EventId 74 -Message "Loading Registry Keys from CSV file for modification of default user hive."
 $RegKeys = Import-Csv -Path $FileRegKeys
 
 # create the reg key restore file if it doesn't exist, else load it to compare for appending new rows.
-Write-Log -EntryType Information -EventId 97 -Message "Creating a Registry key restore file for Kiosk Mode uninstall."
+Write-Log -EntryType Information -EventId 75 -Message "Creating a Registry key restore file for Kiosk Mode uninstall."
 $FileRestore = "$DirKiosk\RegKeyRestore.csv"
 New-Item -Path $FileRestore -ItemType File -Force | Out-Null
 Add-Content -Path $FileRestore -Value 'Key,Value,Type,Data,Description'
@@ -576,7 +588,7 @@ ForEach ($Entry in $RegKeys) {
     $Type = $Entry.Type
     $Data = $Entry.Data
     $Description = $Entry.Description
-    Write-Log -EntryType Information -EventId 99 -Message "Processing Registry Value to '$Description'."
+    Write-Log -EntryType Information -EventId 80 -Message "Processing Registry Value to '$Description'."
 
     If ($Key -like 'HKCU\*') {
         $Key = $Key.Replace("HKCU\", "HKLM\Default\")
@@ -586,7 +598,7 @@ ForEach ($Entry in $RegKeys) {
         # Output the Registry Key and value name to the restore csv so it can be deleted on restore.
         Add-Content -Path $FileRestore -Value "$Key,$Value,,"        
         $null = cmd /c REG ADD "$Key" /v $Value /t $Type /d "$Data" /f '2>&1'
-        Write-Log -EntryType Information -EventId 100 -Message "Added '$Type' Value '$Value' with Value '$Data' to '$Key' with reg.exe.`nReg.exe Exit Code: [$LastExitCode]"
+        Write-Log -EntryType Information -EventId 81 -Message "Added '$Type' Value '$Value' with Value '$Data' to '$Key' with reg.exe.`nReg.exe Exit Code: [$LastExitCode]"
     }
     Else {
         # This is a delete action
@@ -596,14 +608,14 @@ ForEach ($Entry in $RegKeys) {
             $CurrentRegValue = Get-ItemPropertyValue -Path "$keyTemp" -Name $Value
             If ($CurrentRegValue) {
                 Add-Content -Path $FileRestore -Value "$Key,$Value,$type,$CurrentRegValue"        
-                Write-Log -EntryType Information -EventId 101 -Message "Stored '$Type' Value '$Value' with value '$CurrentRegValue' to '$Key' to Restore CSV file."
+                Write-Log -EntryType Information -EventId 82 -Message "Stored '$Type' Value '$Value' with value '$CurrentRegValue' to '$Key' to Restore CSV file."
                 $null = cmd /c REG DELETE "$Key" /v $Value /f '2>&1'
-                Write-Log -EntryType Information -EventId 102 -Message "REG command to delete '$Value' from '$Key' exited with exit code: [$LastExitCode]."
+                Write-Log -EntryType Information -EventId 83 -Message "REG command to delete '$Value' from '$Key' exited with exit code: [$LastExitCode]."
             }
         }        
     }
 }
-Write-Log -EntryType Information -EventId 105 -Message "Unloading default user hive."
+Write-Log -EntryType Information -EventId 84 -Message "Unloading default user hive."
 $null = cmd /c REG UNLOAD "HKLM\Default" '2>&1'
 If ($LastExitCode -ne 0) {
     # sometimes the registry doesn't unload properly so we have to perform powershell garbage collection first.
@@ -612,32 +624,32 @@ If ($LastExitCode -ne 0) {
     Start-Sleep -Seconds 5
     $null = cmd /c REG UNLOAD "HKLM\Default" '2>&1'
     If ($LastExitCode -eq 0) {
-        Write-Log -EntryType Information -EventId 106 -Message "Hive unloaded successfully."
+        Write-Log -EntryType Information -EventId 85 -Message "Hive unloaded successfully."
     }
     Else {
-        Write-Log -EntryType Error -EventId 107 -Message "Default User hive unloaded with exit code [$LastExitCode]."
+        Write-Log -EntryType Error -EventId 86 -Message "Default User hive unloaded with exit code [$LastExitCode]."
     }
 }
 Else {
-    Write-Log -EntryType Information -EventId 106 -Message "Hive unloaded successfully."
+    Write-Log -EntryType Information -EventId 87 -Message "Hive unloaded successfully."
 }
 
 #endregion Registry Edits
 
 #region Applocker Policy 
 
-Write-Log -EntryType Information -EventId 110 -Message "Applying AppLocker Policy to disable unauthorized apps for the Kiosk User."
+Write-Log -EntryType Information -EventId 90 -Message "Applying AppLocker Policy to disable unauthorized apps for the Kiosk User."
 # If there is an existing applocker policy, back it up and store its XML for restore.
 # Else, copy a blank policy to the restore location.
 # Then apply the new AppLocker Policy
-$FileAppLockerKiosk = Join-Path -Path $DirAppLocker -ChildPath "BrowserKioskAppLockerPolicy.xml"
+$FileAppLockerKiosk = Join-Path -Path $DirAppConfigs -ChildPath "BrowserKioskAppLockerPolicy.xml"
 
 [xml]$Policy = Get-ApplockerPolicy -Local -XML
-If ($Policy.AppLockerPolicy.RuleCollection) {Get-ApplockerPolicy -Local -XML | out-file "$DirKiosk\ApplockerPolicy.xml" -force}
+If ($Policy.AppLockerPolicy.RuleCollection) {Get-ApplockerPolicy -Local -XML | out-file "\ApplockerPolicy.xml" -force}
 Else {Copy-Item "$FileAppLockerClear" -Destination "$DirKiosk\ApplockerPolicy.xml" -Force}
 
 Set-AppLockerPolicy -XmlPolicy "$FileAppLockerKiosk"
-Write-Log -EntryType Information -EventId 111 -Message "Enabling and Starting Application Identity Service"
+Write-Log -EntryType Information -EventId 91 -Message "Enabling and Starting Application Identity Service"
 Set-Service -Name AppIDSvc -StartupType Automatic -ErrorAction SilentlyContinue
 # Start the service if not already running
 If ((Get-Service -Name AppIDSvc).Status -ne 'Running') {Start-Service -Name AppIDSvc}
@@ -646,45 +658,41 @@ If ((Get-Service -Name AppIDSvc).Status -ne 'Running') {Start-Service -Name AppI
 
 #region Assigned Access
 
-Write-Log -EntryType Information -EventId 113 -Message "Starting Multi-App Kiosk Configuration Section for Assigned Access."
-. "$DirConfigurationScripts\AssignedAccessWmiBridgeHelpers.ps1"
+Write-Log -EntryType Information -EventId 92 -Message "Starting Multi-App Kiosk Configuration Section for Assigned Access."
 
-$configFile = "BrowserFirstKiosk.xml"
-$sourceFile = Join-Path -Path $DirMultiAppSettings -ChildPath $configFile
-$destFile = Join-Path $DirKiosk -ChildPath 'BrowserFirstKiosk.xml'
-
-Write-Log -EntryType Information -EventId 114 -Message "Configuration File = $configFile"
-Copy-Item -Path $sourceFile -Destination $destFile -Force
+$sourceFile = Join-Path -Path $DirAppConfigs -ChildPath "MultiAppKioskBrowserFirst.xml"
 
 try {
-    Set-MultiAppKioskConfiguration -FilePath $destFile
-    If (Get-MultiAppKioskConfiguration) {
-        Write-Log -EntryType Information -EventId 115 -Message "Multi-App Kiosk configuration successfully applied."
+    Set-MultiAppKioskConfiguration -FilePath $sourceFile
+    $KioskConfig = Get-MultiAppKioskConfiguration
+    If ($KioskConfig) {
+        Write-Log -EntryType Information -EventId 94 -Message "Multi-App Kiosk configuration successfully applied from $sourceFile."
     }
     Else {
-        Write-Log -EntryType Error -EventId 116 -Message "Multi-App Kiosk configuration failed."
+        Write-Log -EntryType Error -EventId 95 -Message "Multi-App Kiosk configuration failed."
         Exit 1        
     }
 } catch {
-    Write-Log -EntryType Error -EventId 116 -Message "An error occurred while applying Multi-App Kiosk configuration: $($_.Exception.Message)"
+    Write-Log -EntryType Error -EventId 96 -Message "An error occurred while applying Multi-App Kiosk configuration: $($_.Exception.Message)"
     Exit 1
 }
 
 #endregion Assigned Access
 
 #region Keyboard Filter
-Write-Log -EntryType Information -EventID 117 -Message "Enabling Keyboard filter."
+Write-Log -EntryType Information -EventID 100 -Message "Enabling Keyboard filter."
 Enable-WindowsOptionalFeature -Online -FeatureName Client-KeyboardFilter -All -NoRestart
 
 # === CONFIGURATION ===
+$Eventlog              = "AVD Kiosk - Configure Keyboard Filter"
 $TaskName              = "(AVD Client) - Configure Keyboard Filter"
 $TaskScriptName        = "Set-KeyboardFilterConfiguration.ps1"
 $TaskScriptEventSource = "Keyboard Filter Configuration"
 $TaskDescription       = "Configures the Keyboard Filter"
-$TaskScriptFullName    = Join-Path -Path $SchedTasksScriptsDir -ChildPath $TaskScriptName
+$TaskScriptFullName    = Join-Path -Path $DirSchedTasksScripts -ChildPath $TaskScriptName
 
 # === Logging ===
-Write-Log -EntryType Information -EventId 118 -Message "Creating Scheduled Task: '$TaskName'."
+Write-Log -EntryType Information -EventId 101 -Message "Creating Scheduled Task: '$TaskName'."
 New-EventLog -LogName $EventLog -Source $TaskScriptEventSource -ErrorAction SilentlyContinue     
 
 # === Task Trigger ===
@@ -718,16 +726,17 @@ Register-ScheduledTask -TaskName $TaskName `
 
 # === Confirm Task Creation ===
 if (Get-ScheduledTask | Where-Object { $_.TaskName -eq "$TaskName" }) {
-    Write-Log -EntryType Information -EventId 119 -Message "Scheduled Task '$TaskName' created successfully."
+    Write-Log -EntryType Information -EventId 102 -Message "Scheduled Task '$TaskName' created successfully."
 } else {
-    Write-Log -EntryType Error -EventId 120 -Message "Scheduled Task '$TaskName' not created."
+    Write-Log -EntryType Error -EventId 103 -Message "Scheduled Task '$TaskName' not created."
     $ScriptExitCode = 1618
 }
 #endregion Keyboard Filter
 
-Write-Log -EntryType Information -EventId 150 -Message "Updating Group Policy"
+Write-Log -EntryType Information -EventId 110 -Message "Updating Group Policy"
 $gpupdate = Start-Process -FilePath 'GPUpdate' -ArgumentList '/force' -Wait -PassThru
-Write-Log -EntryType Information -EventID 151 -Message "GPUpdate Exit Code: [$($GPUpdate.ExitCode)]"
+Write-Log -EntryType Information -EventID 111 -Message "GPUpdate Exit Code: [$($GPUpdate.ExitCode)]"
 $null = cmd /c reg add 'HKLM\Software\Kiosk' /v Version /d "$($version.ToString())" /t REG_SZ /f
-Write-Log -EntryType Information -EventId 199 -Message "Ending Kiosk Mode Configuration version '$($version.ToString())' with Exit Code: $ScriptExitCode"
+Write-Log -EntryType Information -EventId 112 -Message "Ending Kiosk Mode Configuration version '$($version.ToString())' with Exit Code: $ScriptExitCode"
+Pause
 Exit $ScriptExitCode

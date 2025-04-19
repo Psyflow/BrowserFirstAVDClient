@@ -31,7 +31,7 @@
         <![CDATA[
           { "pinnedList":[
             {"packagedAppId":"windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel"},
-            {"desktopAppLink":"C:\\Program Files (x86)\\Amazon WorkSpaces\\Workspaces.exe"},
+            {"desktopAppLink":"C:\\Program Files\\Amazon WorkSpaces\\Workspaces.exe"},
             {"desktopAppLink":"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"},
             {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Excel.lnk"},
             {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Word.lnk"},

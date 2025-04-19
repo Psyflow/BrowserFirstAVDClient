@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<WindowsCustomizations>
+  <PackageConfig xmlns="urn:schemas-Microsoft-com:Windows-ICD-Package-Config.v1.0">
+    <ID>{c74f3309-88dc-4379-a762-70cda48d1651}</ID>
+    <Name>SharedPCwOneDriveSync</Name>
+    <Version>1.2</Version>
+    <OwnerType>SystemIntegrator</OwnerType>
+    <Rank>0</Rank>
+    <Notes></Notes>
+  </PackageConfig>
+  <Settings xmlns="urn:schemas-microsoft-com:windows-provisioning">
+    <Customizations>
+      <Common>
+        <SharedPC>
+          <AccountManagement>
+            <AccountModel>Domain-joined only</AccountModel>
+            <DeletionPolicy>Delete at disk space threshold and inactive threshold</DeletionPolicy>
+            <DiskLevelCaching>50</DiskLevelCaching>
+            <DiskLevelDeletion>25</DiskLevelDeletion>
+            <EnableAccountManager>True</EnableAccountManager>
+            <InactiveThreshold>14</InactiveThreshold>
+          </AccountManagement>
+          <EnableSharedPCModeWithOneDriveSync>True</EnableSharedPCModeWithOneDriveSync>
+          <PolicyCustomization>
+            <EnableWIPFlighting>False</EnableWIPFlighting>
+            <MaintenanceStartTime>1380</MaintenanceStartTime>
+            <SetEduPolicies>False</SetEduPolicies>
+            <SetPowerPolicies>True</SetPowerPolicies>
+            <SignInOnResume>True</SignInOnResume>
+            <SleepTimeout>0</SleepTimeout>
+          </PolicyCustomization>
+        </SharedPC>
+      </Common>
+    </Customizations>
+  </Settings>
+</WindowsCustomizations>

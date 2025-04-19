@@ -3,13 +3,11 @@
   <!-- This AppLocker policy is designed to be used with Windows 10 and later. -->
   <!-- It uses FilePublisherRules to allow or deny specific applications based on their publisher information. -->
   <!-- This verifies that the binary is signed prevents renamed or injected versions of the EXE -->
-
-  <RuleCollection Type="Appx" EnforcementMode="NotConfigured" />
-
+ 
 <!-- APPX Rules -->
-  <RuleCollection Type="Appx" EnforcementMode="NotConfigured">
+  <RuleCollection Type="Appx" EnforcementMode="AuditOnly">
     <!-- Deny Microsoft Edge (Appx version) for standard users -->
-    <FilePublisherRule Id="2a7c0929-cdaf-4d31-94e7-bab463d20db3" Name="Microsoft.MicrosoftEdge.Stable, from Microsoft Corporation" Description="" UserOrGroupSid="S-1-5-32-545" Action="Deny">
+    <FilePublisherRule Id="2a7c0929-cdaf-4d31-94e7-bab463d20db3" Name="Microsoft.MicrosoftEdge.Stable, from Microsoft Corporation" Description="Deny Microsoft Edge (Appx version) for standard users" UserOrGroupSid="S-1-5-32-545" Action="Deny">
       <Conditions>
         <FilePublisherCondition PublisherName="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" ProductName="Microsoft.MicrosoftEdge.Stable" BinaryName="*">
           <BinaryVersionRange LowSection="*" HighSection="*" />
@@ -40,11 +38,9 @@
       </Conditions>
     </FilePublisherRule>
   </RuleCollection>
-<!-- DLL Rules -->  
-  <RuleCollection Type="Dll" EnforcementMode="NotConfigured" />
   
 <!-- EXE Rules -->  
-  <RuleCollection Type="exe" EnforcementMode="NotConfigured">
+  <RuleCollection Type="exe" EnforcementMode="AuditOnly">
 
     <!-- Allow WSCRIPT.EXE for Specialized Shortcuts -->
     <FilePublisherRule Id="d1234567-89ab-cdef-0123-456789abcdef" Name="Allow WScript (Publisher)" Description="Allows WScript.exe for all users" UserOrGroupSid="S-1-1-0" Action="Allow">
@@ -56,7 +52,7 @@
     </FilePublisherRule>
     
     <!-- File: explorer.exe -->
-    <FilePublisherRule Id="b7a9d8e1-83f0-4a97-bc7d-2e2d1e4c9876" Name="Allow Explorer (Publisher)" UserOrGroupSid="S-1-1-0" Action="Allow">
+    <FilePublisherRule Id="b7a9d8e1-83f0-4a97-bc7d-2e2d1e4c9876" Name="Allow Explorer (Publisher)" Description="Allows explorer.exe for all users" UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="EXPLORER.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
@@ -65,7 +61,7 @@
     </FilePublisherRule>
 
     <!-- Allow OneDrive for Users -->
-    <FilePublisherRule Id="b1234567-89ab-cdef-0123-456789abcdef" Name="OneDrive.exe" Description="Allows OneDrive for the Users group." UserOrGroupSid="S-1-1-0" Action="Allow">
+    <FilePublisherRule Id="f9a8b7c6-d5e4-4f3a-9b2c-1a0d8e7f6c5b" Name="OneDrive.exe" Description="Allows OneDrive for the Users group." UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="OneDrive.exe">
           <BinaryVersionRange LowSection="*" HighSection="*" />
@@ -74,7 +70,7 @@
     </FilePublisherRule>
 
     <!-- Allow Edge (exe version) for Users -->
-    <FilePublisherRule Id="e4d61967-c15e-4870-8ae6-d474b35a1969" Name="MSEDGE.EXE" Description="" UserOrGroupSid="S-1-1-0" Action="Allow">
+    <FilePublisherRule Id="e4d61967-c15e-4870-8ae6-d474b35a1969" Name="MSEDGE.EXE" Description="Allows egde for all users" UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT EDGE" BinaryName="MSEDGE.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
@@ -83,7 +79,7 @@
     </FilePublisherRule>
     
     <!-- Allow On-Screen Keyboard (osk.exe) -->
-    <FilePublisherRule Id="b1234567-1111-4aaa-bbbb-1234567890ab" Name="Allow On-Screen Keyboard (Publisher)" UserOrGroupSid="S-1-1-0" Action="Allow">
+    <FilePublisherRule Id="a7f4c2d3-5b6e-4a8f-9c1d-2e3f4b5a6c7d" Name="Allow On-Screen Keyboard (Publisher)" Description="Allow On-Screen Keyboard (osk.exe)" UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="OSK.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
@@ -92,7 +88,7 @@
     </FilePublisherRule>
 
     <!-- Allow Magnifier (magnify.exe) -->
-    <FilePublisherRule Id="b1234567-2222-4bbb-cccc-1234567890ab" Name="Allow Magnifier (Publisher)" UserOrGroupSid="S-1-1-0" Action="Allow">
+    <FilePublisherRule Id="c8e7f4d2-6a9b-4f1c-8d3e-7f2b4a6c8d9e" Name="Allow Magnifier (Publisher)" Description="Allow Magnifier (magnify.exe)" UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="MAGNIFY.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
@@ -101,13 +97,14 @@
     </FilePublisherRule>
 
     <!-- Allow Narrator (narrator.exe) -->
-    <FilePublisherRule Id="b1234567-3333-4ccc-dddd-1234567890ab" Name="Allow Narrator (Publisher)" UserOrGroupSid="S-1-1-0" Action="Allow">
+    <FilePublisherRule Id="e3f4a5b6-c7d8-4e9f-8a1b-2c3d4f5a6b7c" Name="Allow Narrator (Publisher)" Description="Allow Narrator (narrator.exe)" UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="NARRATOR.EXE">
           <BinaryVersionRange LowSection="*" HighSection="*" />
         </FilePublisherCondition>
       </Conditions>
     </FilePublisherRule>
+
 <!-- File Path Rules -->  
       <!-- Allow Program Files folder -->
     <FilePathRule Id="45c7737a-190b-4da5-a4e0-96253f029080" Name="All files in Program Files" Description="Allows Everyone to run apps in Program Files" UserOrGroupSid="S-1-1-0" Action="Allow">
@@ -127,16 +124,6 @@
         <FilePathCondition Path="*" />
       </Conditions>
     </FilePathRule>
-
-    <!-- Deny Everything for Non-Admins. (Applies to all files not explicetly allowed.) -->
-    <FilePathRule Id="4" Name="Deny All Non-Admins" Description="Blocks all other apps for standard users" UserOrGroupSid="S-1-1-0" Action="Deny">
-      <Conditions>
-        <FilePathCondition Path="*" />
-      </Conditions>
-    </FilePathRule>
   </RuleCollection>
-  
 <!-- MSI and Script rules -->
-  <RuleCollection Type="Msi" EnforcementMode="NotConfigured" />
-  <RuleCollection Type="Script" EnforcementMode="NotConfigured" />
 </AppLockerPolicy>
