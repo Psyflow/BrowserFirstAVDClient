@@ -159,8 +159,6 @@ If ($EnvironmentAVD -eq 'AzureUSGovernment') {$SubscribeUrl = 'https://rdweb.wvd
 Else {$SubscribeUrl = 'https://client.wvd.microsoft.com'}
 Get-Variable -Name "SubscribeUrl"
 
-Write-Log -EntryType Information -EventId 10 -Message "Using Subscribe URL: $SubscribeUrl"
-
 # Set default exit code to 0
 $ScriptExitCode = 0
 
@@ -374,19 +372,20 @@ function Write-Log {
 #region Initialization
 
 Write-Log -Initialize -EventLog "Browser First AVD Kiosk" -EventSource "Configuration Script"
-Write-Log -EntryType Information -EventId 2 -Message "Executing '$Script:FullName'."
-Write-Log -EntryType Information -EventId 3 -Message "Running on $($OS.Caption) version $($OS.Version)."
+Write-Log -EntryType Information -EventId 0 -Message "Using Subscribe URL: $SubscribeUrl"
+Write-Log -EntryType Information -EventId 1 -Message "Executing '$Script:FullName'."
+Write-Log -EntryType Information -EventId 2 -Message "Running on $($OS.Caption) version $($OS.Version)."
 
 $Reboot = Get-PendingReboot
 
 If ($Reboot.RebootPending) {
-    Write-Log -EntryType Error -EventId 0 -Message "There is a reboot pending for $Reboot. This application cannot be installed when a reboot is pending.`nRebooting the computer in 15 seconds."
+    Write-Log -EntryType Error -EventId 3 -Message "There is a reboot pending for $Reboot. This application cannot be installed when a reboot is pending.`nRebooting the computer in 15 seconds."
     Start-Process -FilePath 'shutdown.exe' -ArgumentList '/r /t 15'
     Exit 3010
 }
 
 # Copy lgpo to system32 for future use.
-Copy-Item -Path "$DirTools\lgpo.exe" -Destination "$env:SystemRoot\System32" -Force
+Copy-Item -Path "$Script:Dir\Tools\lgpo.exe" -Destination "$env:SystemRoot\System32" -Force
 
 # Enable the Scheduled Task History by enabling the TaskScheduler operational log
 $TaskschdLog = Get-WinEvent -ListLog Microsoft-Windows-TaskScheduler/Operational
