@@ -35,11 +35,6 @@ DWORD:1
 
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
-NoDrives
-DWORD:67108863
-
-User:Non-Administrators
-Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
 NoFileMenu
 DWORD:1
 
@@ -60,11 +55,6 @@ DWORD:1
 
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
-NoViewContextMenu
-DWORD:1
-
-User:Non-Administrators
-Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
 NoTrayContextMenu
 DWORD:1
 
@@ -80,13 +70,13 @@ DWORD:1
 
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
-HideSCAMeetNow
-DWORD:1
+NoDrives
+DWORD:67108863
 
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
-NoViewOnDrive
-DWORD:67108863
+HideSCAMeetNow
+DWORD:1
 
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
@@ -115,7 +105,7 @@ DWORD:1
 
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
-NoStartMenuMFUprogramsList
+NoNetworkInShellFolder
 DWORD:1
 
 User:Non-Administrators
@@ -222,11 +212,6 @@ User:Non-Administrators
 Software\Policies\Microsoft\Windows\Explorer
 NoRemoteDestinations
 DWORD:1
-
-User:Non-Administrators
-Software\Policies\Microsoft\Windows\System
-DisableCMD
-DWORD:2
 
 User:Non-Administrators
 Software\Policies\Microsoft\Windows\System
