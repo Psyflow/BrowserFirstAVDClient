@@ -57,6 +57,11 @@ try {
         } else {
             Write-Error "$($CmdletName): ERROR: Amazon WorkSpaces app installation failed with exit code $LASTEXITCODE."
         }
+        # Remove desktop shortcut
+        $publicDesktop = "$env:PUBLIC\Desktop\Amazon WorkSpaces.lnk"
+        if (Test-Path $publicDesktop) { Remove-Item $publicDesktop -Force }
+
+
     }
 } catch {
     Write-Error "$($CmdletName): ERROR: An unexpected error occurred: $_"
