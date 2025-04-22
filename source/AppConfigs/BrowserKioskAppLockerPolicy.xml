@@ -105,8 +105,41 @@
       </Conditions>
     </FilePublisherRule>
 
-<!-- File Path Rules -->  
-      <!-- Allow Program Files folder -->
+    <!-- Allow VoiceAccess (voiceaccess.exe) -->
+    <FilePublisherRule Id="d91b0bb3-b5fc-433f-98c4-ae3c6852c35d" Name="Allow VoiceAcccess (Publisher)" Description="" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+          <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="VOICEACCESS.EXE">
+              <BinaryVersionRange LowSection="10.0.0.0" HighSection="*"/>
+          </FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+
+    <!-- Allow LiveCaptions (livecaptions.exe) -->  
+    <FilePublisherRule Id="63c06162-9834-406d-a33a-a3aee57435fd" Name="Alow LiveCaptions (Publisher)" Description="" UserOrGroupSid="S-1-1-0" Action="Allow">
+      <Conditions>
+          <FilePublisherCondition PublisherName="O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US" ProductName="MICROSOFT® WINDOWS® OPERATING SYSTEM" BinaryName="LIVECAPTIONS.EXE">
+              <BinaryVersionRange LowSection="10.0.0.0" HighSection="*"/>
+          </FilePublisherCondition>
+      </Conditions>
+    </FilePublisherRule>
+
+<!-- File Path Rules -->
+      <!-- Allow Citrix Workspace -->
+      </FilePathRule>
+        <FilePathRule Id="4767ac38-704c-4b65-83fe-2e2c74a568b4" Name="Allow Citrix Workspace (Path)" Description="" UserOrGroupSid="S-1-1-0" Action="Allow">
+            <Conditions>
+                <FilePathCondition Path="%PROGRAMFILES%\Citrix\*"/>
+            </Conditions>
+        </FilePathRule>
+
+      <!-- Allow Amazon Workspaces -->
+      <FilePathRule Id="8d1fbd42-fdc5-46b8-b323-d7936d21c82a" Name="Allow Amazon Workspaces (Path)" Description="" UserOrGroupSid="S-1-1-0" Action="Allow">
+          <Conditions>
+              <FilePathCondition Path="%PROGRAMFILES%\Amazon Web Services, Inc\Amazon WorkSpaces\*"/>
+          </Conditions>
+      </FilePathRule>
+
+    <!-- Allow Program Files folder -->
     <FilePathRule Id="45c7737a-190b-4da5-a4e0-96253f029080" Name="All files in Program Files" Description="Allows Everyone to run apps in Program Files" UserOrGroupSid="S-1-1-0" Action="Allow">
       <Conditions>
         <FilePathCondition Path="%PROGRAMFILES%\*" />
