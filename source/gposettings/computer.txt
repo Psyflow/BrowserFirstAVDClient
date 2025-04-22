@@ -200,6 +200,13 @@ Software\Policies\Microsoft\Edge
 HideFirstRunExperience
 DWORD:1
 
+; No account setup on first login
+; Don't show account setup prompts (sync, personalization)
+Computer
+Software\Policies\Microsoft\Edge
+SyncDisabled
+DWORD:1
+
 ; Enable Browser Sign-In
 ; Allows users to sign in to Microsoft Edge with their Microsoft account.
 Computer
@@ -214,12 +221,12 @@ Software\Policies\Microsoft\Edge
 ForceSignInWithPrimaryAccount
 DWORD:1
 
-; Enable Profile Picker
-; Ensures that users can use multiple profiles.
+; Hide Profile Picker
+; Do not show profile picker before browser launch
 Computer
 Software\Policies\Microsoft\Edge
 HideProfilePicker
-DWORD:0
+DWORD:1
 
 ; Enable Profile Picker
 ; Restrict Sign-In to Only .mil and .gov Domains
