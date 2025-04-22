@@ -12,9 +12,9 @@
           <App DesktopAppPath="C:\Program Files\Microsoft OneDrive\OneDrive.exe" />
           
           <!-- === VDI Access Tools === -->
-          <App DesktopAppPath="C:\Program Files\Amazon WorkSpaces\Workspaces.exe" />
-          <App DesktopAppPath="%PROGRAMFILES%\Remote Desktop\msrdcw.exe" />
-          <App DesktopAppPath="%PROGRAMFILES%\Remote Desktop\msrdc.exe" />
+          <App DesktopAppPath="C:\Program Files\Amazon Web Services, Inc\Amazon WorkSpaces\Workspaces.exe" />
+          <App DesktopAppPath="C:\Program Files\Remote Desktop\msrdcw.exe" />
+          <App DesktopAppPath="C:\Program Files\Remote Desktop\msrdc.exe" />
           <App DesktopAppPath="C:\Program Files (x86)\Citrix\ICA Client\wfcrun32.exe" />
           <App DesktopAppPath="C:\Program Files (x86)\Citrix\SelfServicePlugin\SelfService.exe" />
           <App DesktopAppPath="C:\Program Files (x86)\Citrix\ICA Client\concentr.exe" />
@@ -24,22 +24,40 @@
           <App DesktopAppPath="C:\WINDOWS\system32\Narrator.exe" />
           <App DesktopAppPath="C:\Windows\System32\osk.exe" />
           <App DesktopAppPath="C:\Windows\System32\Magnify.exe" />
+          <App DesktopAppPath="C:\Windows\System32\VoiceAccess.exe" />
+          <App DesktopAppPath="C:\Windows\System32\LiveCaptions.exe" />
+
+          <!-- === Office Suite Shortcuts === -->
+          <App DesktopAppPath="C:\Users\Public\Desktop\Word.lnk" />
+          <App DesktopAppPath="C:\Users\Public\Desktop\Excel.lnk" />
+          <App DesktopAppPath="C:\Users\Public\Desktop\PowerPoint.lnk" />
+          <App DesktopAppPath="C:\Users\Public\Desktop\Outlook.lnk" />
+          <App DesktopAppPath="C:\Users\Public\Desktop\Teams.lnk" />
+          <App DesktopAppPath="C:\Users\Public\Desktop\OneDrive.lnk" />
+          <App DesktopAppPath="C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Amazon WorkSpaces.lnk" />
+          <App DesktopAppPath="C:\Users\Public\Desktop\Ease of Access\Ease of Access.lnk" />
 
         </AllowedApps>
       </AllAppsList>
       <v5:StartPins>
         <![CDATA[
-          { "pinnedList":[
-            {"packagedAppId":"windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel"},
-            {"desktopAppLink":"C:\\Program Files\\Amazon WorkSpaces\\Workspaces.exe"},
-            {"desktopAppLink":"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"},
-            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Excel.lnk"},
-            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Word.lnk"},
-            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\PowerPoint.lnk"},
-            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Outlook.lnk"},
-            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\Teams.lnk"},
-            {"desktopAppLink":"C:\\Users\\Public\\Desktop\\OneDrive.lnk"}
-          ] }
+          {
+            "pinnedList": [
+              { "desktopAppLink": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" },
+              { "desktopAppLink": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Amazon WorkSpaces.lnk" },
+              { "packagedAppId": "Microsoft.RemoteDesktop.WPF" }
+              { "packagedAppId": "Citrix.Workspace" }
+              { "packagedAppId": "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" },
+              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Ease of Access\\Ease of Access.lnk" }
+              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Excel.lnk" },
+              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Word.lnk" },
+              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\PowerPoint.lnk" },
+              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Outlook.lnk" },
+              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Teams.lnk" },
+              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\OneDrive.lnk" },
+              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Ease of Access\\Ease of Access.lnk" }
+            ]
+          }
         ]]>
       </v5:StartPins>
       <Taskbar ShowTaskbar="true"/>
