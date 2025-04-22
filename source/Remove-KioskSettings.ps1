@@ -257,8 +257,6 @@ ForEach ($DirShortcut in $DirsShortcuts) {
     }
 }
 
-# Remove CSP Policy Instances
-
 # Remove Custom Start Menu
 Get-ChildItem -Path "$env:SystemDrive\Users\Default\AppData\Local\Microsoft\Windows\Shell" -Filter 'LayoutModification.*' | Remove-Item -Force
 
