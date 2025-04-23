@@ -45,8 +45,8 @@
             "pinnedList": [
               { "desktopAppLink": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" },
               { "desktopAppLink": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Amazon WorkSpaces.lnk" },
-              { "packagedAppId": "Microsoft.RemoteDesktop.WPF" }
-              { "packagedAppId": "Citrix.Workspace" }
+              { "packagedAppId": "Microsoft.RemoteDesktop.WPF" },
+              { "packagedAppId": "Citrix.Workspace" },
               { "packagedAppId": "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" },
               { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Ease of Access\\Ease of Access.lnk" }
               { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Excel.lnk" },
