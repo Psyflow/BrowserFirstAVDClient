@@ -1,0 +1,50 @@
+; Microsoft Edge settings that apply to every kiosk, whatever the settings roaming mode.
+
+; Skip the first run experience
+Computer
+Software\Policies\Microsoft\Edge
+HideFirstRunExperience
+DWORD:1
+
+; Force users to sign in to the browser with their work account
+Computer
+Software\Policies\Microsoft\Edge
+BrowserSignin
+DWORD:2
+
+; Single sign-on to work sites with the signed-in profile
+Computer
+Software\Policies\Microsoft\Edge
+AADWebSiteSSOUsingThisProfileEnabled
+DWORD:1
+
+; The work profile cannot be removed
+Computer
+Software\Policies\Microsoft\Edge
+NonRemovableProfileEnabled
+DWORD:1
+
+; Downloads go to Documents\Downloads, which Known Folder Move keeps in the user's OneDrive
+Computer
+Software\Policies\Microsoft\Edge
+DownloadDirectory
+SZ:${documents}\Downloads
+
+; Earlier versions kept the whole Edge profile in OneDrive (UserDataDir = Documents\Edge). Microsoft does not
+; support roaming the profile folder and it corrupts easily, so the profile is back in its default local
+; location. Favorites and settings roam through the SettingsRoaming option instead.
+Computer
+Software\Policies\Microsoft\Edge
+UserDataDir
+DELETE
+
+Computer
+Software\Policies\Microsoft\Edge
+DiskCacheDir
+DELETE
+
+; RoamingProfileLocation only works with RoamingProfileSupportEnabled, which is for Active Directory accounts.
+Computer
+Software\Policies\Microsoft\Edge
+RoamingProfileLocation
+DELETE

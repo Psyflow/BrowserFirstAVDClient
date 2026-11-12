@@ -19,6 +19,12 @@ Write-Output "***************************************"
 # Paths for managing shortcuts
 $publicDesktop = "C:\Users\Public\Desktop"
 
+# The multi-app kiosk Start menu can only pin shortcuts that live in a Start Menu Programs folder,
+# so every shortcut is also copied there. MultiAppKioskBrowserFirst.xml pins these paths.
+$startMenuPrograms = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
+$startMenuEaseOfAccess = Join-Path $startMenuPrograms "Ease of Access Tools"
+$webAppNames = "Outlook", "Excel", "PowerPoint", "Teams", "Word"
+
 # Define shortcut paths
 $shortcuts = @{
     "OneDrive"      = Join-Path $publicDesktop "OneDrive.lnk"
@@ -36,6 +42,10 @@ if ($Remove) {
             Remove-Item $shortcut.Value -Force
             Write-Host "Removed $($shortcut.Key) shortcut from public desktop."
         }
+    }
+    foreach ($name in $webAppNames) {
+        $startMenuShortcut = Join-Path $startMenuPrograms "$name.lnk"
+        if (Test-Path $startMenuShortcut) { Remove-Item $startMenuShortcut -Force }
     }
 } else {
     # Create shortcuts
@@ -137,6 +147,13 @@ if ($Remove) {
     } catch {
         Write-Host "Failed to create Word shortcut: $($_.Exception.Message)" -ForegroundColor Red
     }
+
+    # Copy the web app shortcuts to the Start Menu so the kiosk Start pins resolve.
+    foreach ($name in $webAppNames) {
+        if (Test-Path $shortcuts[$name]) {
+            Copy-Item -Path $shortcuts[$name] -Destination (Join-Path $startMenuPrograms "$name.lnk") -Force
+        }
+    }
 }
 
 Write-Output "*******************************************"
@@ -157,6 +174,9 @@ if ($Remove) {
             Write-Host "Failed to remove Ease of Access folder: $($_.Exception.Message)" -ForegroundColor Red
         }
     }
+    if (Test-Path -Path $startMenuEaseOfAccess) { Remove-Item -Path $startMenuEaseOfAccess -Recurse -Force -ErrorAction SilentlyContinue }
+    $masterShortcut = Join-Path $startMenuPrograms "Ease of Access.lnk"
+    if (Test-Path -Path $masterShortcut) { Remove-Item -Path $masterShortcut -Force -ErrorAction SilentlyContinue }
     
 } else {
 
@@ -198,17 +218,23 @@ if ($Remove) {
 
     Write-Host "Creating Shortcuts for Ease of Access tools..."
 
-    # Create shortcuts for each tool
+    if (!(Test-Path -Path $startMenuEaseOfAccess)) {
+        New-Item -ItemType Directory -Path $startMenuEaseOfAccess -Force | Out-Null
+    }
+
+    # Create shortcuts for each tool on the public desktop folder and in the Start Menu (for the kiosk Start pins)
     foreach ($tool in $accessibilityTools) {
-        try {
-            $shortcutPath = Join-Path -Path $folderPath -ChildPath ("{0}.lnk" -f $tool.Name)
-            $shortcut = $WshShell.CreateShortcut($shortcutPath)
-            $shortcut.TargetPath = $tool.TargetPath
-            $shortcut.IconLocation = $tool.IconLocation
-            $shortcut.Save()
-            Write-Host "Created shortcut for $($tool.Name) at $shortcutPath"
-        } catch {
-            Write-Host "Failed to create shortcut for $($tool.Name): $($_.Exception.Message)" -ForegroundColor Red
+        foreach ($targetFolder in $folderPath, $startMenuEaseOfAccess) {
+            try {
+                $shortcutPath = Join-Path -Path $targetFolder -ChildPath ("{0}.lnk" -f $tool.Name)
+                $shortcut = $WshShell.CreateShortcut($shortcutPath)
+                $shortcut.TargetPath = $tool.TargetPath
+                $shortcut.IconLocation = $tool.IconLocation
+                $shortcut.Save()
+                Write-Host "Created shortcut for $($tool.Name) at $shortcutPath"
+            } catch {
+                Write-Host "Failed to create shortcut for $($tool.Name): $($_.Exception.Message)" -ForegroundColor Red
+            }
         }
     }
 

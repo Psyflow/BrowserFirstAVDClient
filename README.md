@@ -1,4 +1,70 @@
-# Azure Virtual Desktop Client Kiosk
+# Browser First AVD Client Kiosk
+
+This fork turns Windows 11 IoT Enterprise into a browser-first thin client. Users sign in with their Entra ID account and get a locked-down multi-app kiosk shell with Microsoft Edge, the Microsoft 365 web apps and the Windows accessibility tools. When they need a full desktop they open Windows App and connect to Azure Virtual Desktop.
+
+It is based on [Azure/AVDClientKiosk](https://github.com/Azure/AVDClientKiosk). The upstream documentation is kept at the end of this file for reference; the parameters and scenarios it describes belong to the upstream script, not to `Set-BrowserKioskSettings.ps1`.
+
+## Installation
+
+Run `source\ManualStart.bat` as an administrator, or run the script as SYSTEM yourself:
+
+``` powershell
+psexec64 -s -i powershell -ExecutionPolicy Bypass -File .\Set-BrowserKioskSettings.ps1 -EnvironmentAVD AzureUSGovernment -ApplySTIGs -InstallAVDClient -ShowDisplaySettings
+```
+
+The device must be joined to Entra ID (or hybrid joined) before the script runs, because the tenant ID is read from the join information.
+
+| Parameter | Description |
+|:----------|:------------|
+| `EnvironmentAVD` | `AzureCloud` (default) or `AzureUSGovernment`. Selects the AVD feed URL and the commercial or US Government URLs for the Microsoft 365 web app shortcuts. |
+| `ApplySTIGs` | Downloads the latest DISA STIG GPO package and applies the Windows 11, Edge, Firewall, Internet Explorer and Defender settings with LGPO, followed by the exceptions needed for Entra sign-in. |
+| `InstallAVDClient` | Provisions Windows App for all users from an MSIX package you place in `source\Customizations\Software\WindowsApp`. The Remote Desktop client (MSI) used by earlier versions reached end of support (September 28, 2026 for Azure Government) and can no longer be downloaded. |
+| `ShowDisplaySettings` | The Settings app is always limited to the Accessibility pages for non-administrators. This switch adds the Display and Sound pages. |
+| `SettingsRoaming` | `OneDrive` (default), `EdgeSync` or `None`. See [Settings roaming](#settings-roaming). |
+| `TenantID` | Entra tenant ID for OneDrive silent sign-in and Known Folder Move. Default `AutoDiscover`. |
+| `Version` | Written to `HKLM\Software\Kiosk\Version` for detection (`DetectionScript.ps1`). |
+
+Remove the configuration with `source\Remove-KioskSettings.ps1`.
+
+## Settings roaming
+
+Kiosks run in Shared PC mode, so a user's local profile is temporary. The goal is that a user's browser settings and assistive technology settings follow them to any kiosk, and that nothing else does.
+
+The Microsoft cloud features that normally do this are not available to GCC High and DoD tenants: Microsoft Edge enterprise sync, Enterprise State Roaming and Windows settings backup and restore (Windows Backup for Organizations). UE-V reached end of support in April 2026. Edge on-premises sync (`RoamingProfileSupportEnabled`) only works for Active Directory accounts, not Entra accounts. Pointing the Edge `UserDataDir` at a OneDrive folder, as earlier versions of this build did, is not supported by Microsoft and corrupts easily.
+
+`-SettingsRoaming OneDrive` therefore uses the one service that is available everywhere, the user's OneDrive, and moves only an allow-listed set of settings through it:
+
+| What | How |
+|:-----|:----|
+| Edge favorites | The `Bookmarks` file of the Edge profile. |
+| Edge settings | Selected keys of the Edge `Preferences` file: zoom levels, fonts and font sizes, accessibility options, caption style, favorites bar, languages and spell check. |
+| Windows accessibility settings | Registry keys for Narrator, Magnifier, On-Screen Keyboard, colour filters, contrast, text size, pointer, text cursor, keyboard options (Sticky/Filter/Toggle Keys), caption style and the tools that start at sign-in. |
+
+Passwords, cookies, history, cache, extensions and documents are not saved.
+
+How it works:
+
+* `Scripts\ScheduledTasks\Sync-UserSettings.ps1` runs as SYSTEM from the scheduled task `(AVD Client) - Roam User Settings` at every sign-in, on every workstation lock and every 5 minutes. Running as SYSTEM means PowerShell does not need to be allowed for kiosk users.
+* The list of what is saved is `AppConfigs\SettingsRoamingManifest.json`. Add a registry key, a file set (for example the settings folder of JAWS, NVDA or ZoomText under `AppData`) or an Edge preference key there. Edge preference names can be looked up on `edge://prefs-internals`.
+* The store is the hidden folder `KioskSettings` in the root of the user's OneDrive. `revision.json` lists a SHA256 hash for each data file.
+* A kiosk never saves until it has restored the newest revision, never restores a revision whose files have not all arrived, and waits 5 minutes after OneDrive is ready before it creates a new store. This prevents a fresh profile from overwriting saved settings.
+* Edge favorites and settings are restored only while Edge is closed. Startup boost and background mode are turned off by policy so Edge is closed at sign-in. If the user opens Edge before OneDrive has delivered the store, they are asked to close Edge for a few minutes.
+* Accessibility settings are written to the user's registry shortly after sign-in, once OneDrive is ready. Narrator, Magnifier, On-Screen Keyboard and Edge pick them up when they start. Text size, pointer, contrast, colour filters and keyboard options apply at the next sign-in on that kiosk; the user gets a message saying so.
+* If a user is signed in to two kiosks at once, the last kiosk to save wins.
+* Log: `C:\Windows\Logs\Configuration\Sync-UserSettings.log`. Warnings and errors also go to the `Browser First AVD Kiosk` event log.
+
+`-SettingsRoaming EdgeSync` turns on Edge enterprise sync for favorites and settings only. It is for commercial and GCC tenants, does not roam accessibility settings and overrides the Edge STIG setting that disables sync.
+
+## Things to check on a test device
+
+* **AppLocker is in audit mode.** Both rule collections in `AppConfigs\BrowserKioskAppLockerPolicy.xml` are `AuditOnly`, so the policy does not block anything. Do not switch it to `Enabled` as it is: the Exe rules have no rule for the Windows folder, and non-administrators would not be able to sign in. The multi-app kiosk configuration already restricts which apps kiosk users can start.
+* **Windows App** has to be supplied as an MSIX package or deployed with your management tool.
+* **Forced Edge sign-in** (`BrowserSignin=2`) with a GCC High account.
+* **Start menu pins and the taskbar pin** in `AppConfigs\MultiAppKioskBrowserFirst.xml`.
+
+---
+
+# Upstream documentation: Azure Virtual Desktop Client Kiosk
 
 ## Introduction
 

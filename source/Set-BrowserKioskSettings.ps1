@@ -1,10 +1,12 @@
 <# 
 .SYNOPSIS
- 
-    
+    Configures Windows 11 IoT Enterprise as a browser-first thin client: Microsoft Edge and the
+    Microsoft 365 web apps on a locked-down multi-app kiosk shell, with Windows App available for
+    a full Azure Virtual Desktop session.
+
     Additionally, you can choose to
 
-    * Install the latest Remote Desktop client for Windows and Visual C++ Redistributables directly from the web.
+    * Provision Windows App (the replacement for the retired Remote Desktop client) from a local MSIX package.
     * Apply the latest applicable Security Technical Implementation Guides (STIG) group policy settings into the local group policy object via the
       local group policy object tool. This also applies several delta settings to maintain operability as a kiosk.
     * The computer is setup as a shared PC where the account management process is enabled and all user profiles are automatically
@@ -17,7 +19,8 @@
     * Multi-Local Group Policy configuration to limit interface elements.
     * Built-in application removal.
     * Multi-App Kiosk configuration for Windows 11
-    * Remote Desktop client for Windows install (If selected)
+    * Windows App provisioning (If selected)
+    * Roaming of browser favorites/settings and assistive technology settings (see SettingsRoaming)
     * STIG application (If selected)
     * Start layout modification for the custom explorer shell options
 
@@ -46,8 +49,23 @@ The list of Urls can be found at
 https://learn.microsoft.com/en-us/azure/virtual-desktop/users/connect-microsoft-store?source=recommendations#subscribe-to-a-workspace.
 
 .PARAMETER InstallAVDClient
-This switch parameter determines If the latest Remote Desktop client for Windows is automatically downloaded from the Internet and installed
-on the system prior to configuration.
+This switch parameter determines If Windows App is provisioned for all users from an MSIX package placed in
+'Customizations\Software\WindowsApp'. The Remote Desktop client (MSI) that earlier versions installed reached end of
+support (September 28, 2026 for Azure Government) and can no longer be downloaded.
+
+.PARAMETER SettingsRoaming
+Determines how a user's browser and assistive technology settings follow them between kiosks.
+  OneDrive - (default) A SYSTEM scheduled task saves an allow-listed set of settings (Edge favorites, selected Edge
+             settings and Windows accessibility settings) to a hidden folder in the user's OneDrive and restores it at
+             sign-in. Works in GCC High / DoD, where Edge sync, Enterprise State Roaming and Windows settings backup
+             are not available, and keeps Edge sync disabled as the Edge STIG requires.
+  EdgeSync - Edge enterprise sync limited to favorites and settings. Commercial and GCC tenants only. Accessibility
+             settings are not roamed and the Edge STIG sync setting is overridden.
+  None     - Nothing is roamed.
+
+.PARAMETER TenantID
+The Entra tenant ID used for OneDrive silent configuration and Known Folder Move. 'AutoDiscover' reads it from the
+device's Entra join information.
 
 .PARAMETER SharedPC
 This switch parameter determines If the computer is setup as a shared PC. The account management process is enabled and all user profiles are automatically
@@ -70,17 +88,22 @@ param (
 
     [switch]$InstallAVDClient,
 
+    [string]$TenantID = "AutoDiscover",
+
     [switch]$ShowDisplaySettings,
+
+    [ValidateSet('OneDrive', 'EdgeSync', 'None')]
+    [string]$SettingsRoaming = 'OneDrive',
     
-    [version]$Version = '1.0.0'
+    [version]$Version = '2.0.0'
 )
 
-# Check if the OS is Windows IoT Enterprise
-$OS = Get-WmiObject -Class Win32_OperatingSystem
-If (-not ($OS.Caption -match "Windows 11 IoT Enterprise")) {
-    Write-Log -EntryType Error -EventId 0 -Message "This script is only supported on Windows 11 IoT Enterprise. Exiting."
-    Exit 1
-}
+$Script:FullName = $MyInvocation.MyCommand.Path
+$Script:File = $MyInvocation.MyCommand.Name
+$Script:Name=[System.IO.Path]::GetFileNameWithoutExtension($Script:File)
+$Script:Dir = Split-Path $Script:FullName
+
+$OS = Get-CimInstance -ClassName Win32_OperatingSystem
 
 # Restart in 64-Bit PowerShell if not already running in 64-bit mode
 # primarily designed to support Microsoft Endpoint Manager application deployment
@@ -96,6 +119,7 @@ If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
                 "String"          { $Script:Args += "-$k `"$paramValue`"" }
                 "Int32"           { $Script:Args += "-$k $paramValue" }
                 "Boolean"         { $Script:Args += "-$k `$$paramValue" }
+                default           { $Script:Args += "-$k `"$paramValue`"" }
             }
         }
 
@@ -104,10 +128,10 @@ If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
         $ScriptArgsString = $Script:Args -Join " "
 
         If ($ScriptArgsString) {
-            Start-Process -FilePath $PowerShell64 -ArgumentList "-File `"$($Script:FullName)`" $ScriptArgsString" -Wait -NoNewWindow
+            Start-Process -FilePath $PowerShell64 -ArgumentList "-ExecutionPolicy Bypass -File `"$($Script:FullName)`" $ScriptArgsString" -Wait -NoNewWindow
         } 
         Else {
-            Start-Process -FilePath $PowerShell64 -ArgumentList "-File `"$($Script:FullName)`"" -Wait -NoNewWindow
+            Start-Process -FilePath $PowerShell64 -ArgumentList "-ExecutionPolicy Bypass -File `"$($Script:FullName)`"" -Wait -NoNewWindow
         }
     }
     Catch {
@@ -120,12 +144,6 @@ Write-Output "*********************************"
 Write-Output "Setting Script Variables"
 Write-Output "*********************************"
 
-$Script:FullName = $MyInvocation.MyCommand.Path
-$Script:File = $MyInvocation.MyCommand.Name
-$Script:Name=[System.IO.Path]::GetFileNameWithoutExtension($Script:File)
-$Script:Dir = Split-Path $Script:FullName
-
-
 # Set source directory and variables for supporting folders
 $DirKiosk = "$env:SystemDrive\KioskSettings"
 
@@ -133,6 +151,7 @@ $Directories = @{
     "AppConfigs"            = "AppConfigs"
     "Customizations"        = "Customizations"
     "GPO"                   = "GPOSettings"
+    "OneDrive"              = "OneDriveSetup"
     "Provisioning"          = "Provisioning"
     "RegistryKeys"          = "RegistryKeys"
     "Tools"                 = "Tools"
@@ -158,6 +177,13 @@ Get-Variable -Name "File*"
 If ($EnvironmentAVD -eq 'AzureUSGovernment') {$SubscribeUrl = 'https://rdweb.wvd.azure.us'}
 Else {$SubscribeUrl = 'https://client.wvd.microsoft.com'}
 Get-Variable -Name "SubscribeUrl"
+
+# Edge enterprise sync is not available to GCC High / DoD tenants.
+If ($SettingsRoaming -eq 'EdgeSync' -and $EnvironmentAVD -eq 'AzureUSGovernment') {
+    Write-Warning "Edge sync is not available in Azure Government. Using the OneDrive settings roaming mode instead."
+    $SettingsRoaming = 'OneDrive'
+}
+Get-Variable -Name "SettingsRoaming"
 
 # Set default exit code to 0
 $ScriptExitCode = 0
@@ -375,17 +401,26 @@ Write-Log -Initialize -EventLog "Browser First AVD Kiosk" -EventSource "Configur
 Write-Log -EntryType Information -EventId 0 -Message "Using Subscribe URL: $SubscribeUrl"
 Write-Log -EntryType Information -EventId 1 -Message "Executing '$Script:FullName'."
 Write-Log -EntryType Information -EventId 2 -Message "Running on $($OS.Caption) version $($OS.Version)."
+If (-not ($OS.Caption -match "Windows 11 IoT Enterprise")) {
+    Write-Log -EntryType Warning -EventId 0 -Message "This script is only tested on Windows 11 IoT Enterprise. Detected '$($OS.Caption)'."
+}
 
 $Reboot = Get-PendingReboot
 
 If ($Reboot.RebootPending) {
-    Write-Log -EntryType Error -EventId 3 -Message "There is a reboot pending for $Reboot. This application cannot be installed when a reboot is pending.`nRebooting the computer in 15 seconds."
+    $RebootReasons = ($Reboot.GetEnumerator() | Where-Object {$_.Value -eq $true -and $_.Key -ne 'RebootPending'} | ForEach-Object {$_.Key}) -join ', '
+    Write-Log -EntryType Error -EventId 3 -Message "There is a reboot pending ($RebootReasons). This application cannot be installed when a reboot is pending.`nRebooting the computer in 15 seconds."
     Start-Process -FilePath 'shutdown.exe' -ArgumentList '/r /t 15'
     Exit 3010
 }
 
 # Copy lgpo to system32 for future use.
-Copy-Item -Path "$Script:Dir\Tools\lgpo.exe" -Destination "$env:SystemRoot\System32" -Force
+try {
+    Copy-Item -Path "$Script:Dir\Tools\lgpo.exe" -Destination "$env:SystemRoot\System32" -Force
+} catch {
+    Write-Log -EntryType Error -EventId 10 -Message "Failed to copy lgpo.exe to System32: $($_.Exception.Message)"
+    Exit 1
+}
 
 # Enable the Scheduled Task History by enabling the TaskScheduler operational log
 $TaskschdLog = Get-WinEvent -ListLog Microsoft-Windows-TaskScheduler/Operational
@@ -403,54 +438,21 @@ Write-Log -EntryType Information -EventId 4 -Message 'Running removal script in 
 #endregion Previous Version Removal
 
 #region Copy Files
+Write-Output ""
+Write-Output "*********************************"
+Write-Output "Copying Files to Local Directory"
+Write-Output "*********************************"
+
 # Create the KioskSettings directory if it doesn't exist
 New-Item -Path $DirKiosk -ItemType Directory -Force | Out-Null
 
 # Get all top-level items, exclude the .vs folder
-Get-ChildItem -Path $Script:Dir -Directory -Exclude '.vs' | ForEach-Object {
+Get-ChildItem -Path $Script:Dir -Directory | Where-Object {$_.Name -ne '.vs'} | ForEach-Object {
     $sourceFolder = $_.FullName
     $targetFolder = Join-Path $DirKiosk $_.Name
-    Copy-Item -Path $sourceFolder -Destination $targetFolder -Recurse
+    Copy-Item -Path $sourceFolder -Destination $targetFolder -Recurse -Force
     Write-Log -EntryType Information -EventId 1 -Message "Copied $sourceFolder to $targetFolder "
 }
-
-#endregion Copy Files
-Write-Output ""
-Write-Output "*********************************"
-Write-Output "Installing Applications"
-Write-Output "*********************************"
-#region Install AVD Client
-
-If ($installAVDClient) {
-    Write-Log -EntryType Information -EventID 30 -Message "Running Script to install or update Visual C++ Redistributables."
-    & "$DirConfigurationScripts\Install-VisualC++Redistributables.ps1"
-    Write-Log -EntryType Information -EventId 31 -Message "Running Script to install or update AVD Client."
-    & "$DirConfigurationScripts\Install-AVDClient.ps1"
-}
-
-#endregion Install AVD Client
-
-#region OneDrive 
-
-# Remove Per-User installation of OneDrive
-& "$DirConfigurationScripts\Install-OneDrive.ps1" -Remove
-
-# Install system installation of OneDrive
-& "$DirConfigurationScripts\Install-OneDrive.ps1"
-
- #endregion Remove Apps
-
-#region STIGs
-
-If ($ApplySTIGs) {
-    Write-Log -EntryType Information -EventId 20 -Message "Running Script to apply the latest STIG group policy settings via LGPO for Windows 10, Internet Explorer, Microsoft Edge, Windows Firewall, and Defender AntiVirus."
-    & "$DirConfigurationScripts\Apply-LatestSTIGs.ps1"
-    
-    Write-Log -EntryType Information -EventId 21 -Message "Running Script to allow PKU2U online identities required for AAD logon."
-    & "$DirConfigurationScripts\Apply-STIGDirectSignOnExceptions.ps1"  
-}
-
-#endregion STIGs
 
 #region KioskSettings Directory
 # Set ACLs on Kiosk Settings Directory
@@ -471,6 +473,141 @@ Update-ACL -Path $DirKiosk -Identity 'System' -FileSystemRights 'FullControl' -T
 # Disable inheritance and remove existing inherited ACEs
 Update-ACLInheritance -Path $DirKiosk -DisableInheritance $true -PreserveInheritedACEs $false
 #endregion KioskSettings Directory
+#endregion Copy Files
+
+#region STIGs
+Write-Output ""
+Write-Output "*********************************"
+Write-Output "Applying STIGs"
+Write-Output "*********************************"
+
+If ($ApplySTIGs) {
+    Write-Log -EntryType Information -EventId 20 -Message "Running Script to apply the latest STIG group policy settings via LGPO for Windows 11, Internet Explorer, Microsoft Edge, Windows Firewall, and Defender AntiVirus."
+    # LGPO.exe was copied to System32 above, so the STIG script does not need to download it.
+    & "$DirConfigurationScripts\Apply-LatestSTIGs.ps1" -LocalLGPO
+    
+    Write-Log -EntryType Information -EventId 21 -Message "Running Script to allow PKU2U online identities required for AAD logon."
+    & "$DirConfigurationScripts\Apply-STIGDirectSignOnExceptions.ps1"  
+}
+#endregion STIGs
+
+#region Install AVD Client
+Write-Output ""
+Write-Output "*********************************"
+Write-Output "Installing AVD Client"
+Write-Output "*********************************"
+
+If ($installAVDClient) {
+    # The Remote Desktop client (MSI) is retired and can no longer be downloaded. Windows App replaces it.
+    Write-Log -EntryType Information -EventId 31 -Message "Running Script to provision Windows App."
+    & "$DirConfigurationScripts\Install-WindowsApp.ps1" -PackageFolder "$DirCustomizations\Software\WindowsApp"
+    If ($LASTEXITCODE -ne 0) {
+        Write-Log -EntryType Warning -EventId 32 -Message "Windows App was not provisioned (exit code $LASTEXITCODE). See $env:SystemRoot\Logs\Software\Install-WindowsApp.log."
+    }
+}
+
+#endregion Install AVD Client
+
+#region OneDrive
+Write-Output ""
+Write-Output "*********************************"
+Write-Output "Installing OneDrive and Setting GPOs"
+Write-Output "*********************************"
+
+# Get Tenant ID from registry if not provided explicitly
+
+$ModulePath = Join-Path $dirOneDrive "OneDriveFunctions.psm1"
+if (Test-Path -Path $ModulePath) {
+    Import-Module -Name $ModulePath -Force
+} else {
+    Write-Log -EntryType Error -EventId 64 -Message "OneDriveFunctions.psm1 not found at $ModulePath. Exiting."
+    exit 1
+}
+
+if ($TenantID -eq "AutoDiscover") {
+    $TenantID = Get-AzureADTenantId
+    if (-not $TenantID) {
+        Write-Log -EntryType Error -EventId 65 -Message "No Entra tenant ID found. Join the device to Entra ID first or pass -TenantID. Exiting."
+        exit 1
+    }
+}
+$TenantID = $TenantID.ToLower()
+
+# Install the per-machine OneDrive sync app when it is not already present. An existing per-machine
+# installation is kept: it updates itself, and removing it first would leave the device without OneDrive
+# if the download of the installer failed.
+If (Test-Path -Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe") {
+    Write-Log -EntryType Information -EventId 68 -Message "Per-machine OneDrive is already installed. Keeping the existing installation."
+}
+Else {
+    $null = Invoke-OneDriveInstallMgmt -Remove:$true
+    $OneDriveInstalled = Invoke-OneDriveInstallMgmt
+    Write-Log -EntryType Information -EventId 68 -Message "Per-machine OneDrive installation result: $($OneDriveInstalled | Select-Object -Last 1)"
+}
+
+#Move Latest OneDrive ADMX and ADML files to C:\Windows\PolicyDefinitions
+try {
+    $versionPath = Get-ChildItem -Path "$env:ProgramFiles\Microsoft OneDrive" |
+        Where-Object {$_.Name -match '\b\d+\.\d+\.\d+\.\d+\b' -and (Test-Path -Path "$($_.FullName)\adm")} |
+        Sort-Object { [version]$_.Name } -Descending |
+        Select-Object -First 1 -ExpandProperty FullName 
+    if (-not $versionPath) {
+        Write-Log -EntryType Error -EventId 66 -Message "Unable to locate the per-machine OneDrive version directory. Ensure OneDrive is installed."
+        exit 1
+    }
+
+    $admPath = Join-Path -Path $versionPath -ChildPath "adm"
+    Get-ChildItem -Path $admPath -Filter *.ADMX | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination "C:\Windows\PolicyDefinitions" -Force
+        Write-Host "Copied: $($_.FullName)" -ForegroundColor Cyan
+    }
+
+     Get-ChildItem -Path $admPath -Filter *.ADML | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination "C:\Windows\PolicyDefinitions\en-US" -Force
+        Write-Host "Copied: $($_.FullName)" -ForegroundColor Cyan
+    }
+
+    Write-Host "ADMX and ADML files successfully copied." -ForegroundColor Green
+} catch {
+    Write-Log -EntryType Error -EventId 67 -Message "Copying the OneDrive policy templates failed: $($_.Exception.Message)"
+    exit 1
+}
+
+# Apply Onedrive GPO settings for Machine
+$OneDriveComputer = "$env:Temp\OneDrive_ComputerLGPO.txt"
+(Get-Content -Path (Join-Path $dirOneDrive 'OneDrive_ComputerLGPO.txt')).Replace('{TenantID}', $TenantID) | Out-File $OneDriveComputer
+$null = cmd /c lgpo.exe /t "$OneDriveComputer" '2>&1'
+Write-Log -EntryType Information -EventId 70 -Message "Configured One Drive Settings for Computer via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
+
+# Apply Onedrive GPO settings for User
+$OneDriveUser = Join-Path $dirOneDrive 'OneDrive_UserLGPO.txt'
+$null = cmd /c lgpo.exe /t "$OneDriveUser" '2>&1'
+Write-Log -EntryType Information -EventId 70 -Message "Configured One Drive Settings for Users via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
+
+#endregion OneDrive
+
+#region Create NoUser Directory
+# Purpose: Prevent users from adding files and folders to the desktop directory
+# This is a more secure method than pointing to the public folder.
+$noUserPath = "C:\Users\NoUser"
+New-Item -Path (Join-Path $noUserPath Desktop) -ItemType Directory -Force
+
+# Remove inherited permissions
+icacls $noUserPath /inheritance:r
+
+# Grant read-only access to "Users"
+icacls $noUserPath /grant "Users:(OI)(CI)R"
+
+# Explicitly DENY write access to Administrators
+# Administrators should not be able to write to this directory. If they need to, they can use the "Take Ownership" option by script.
+icacls $noUserPath /deny "Administrators:(OI)(CI)W"
+
+# Read all permissions of "C:\Users\NoUser"
+Write-Host "Permissions for $($noUserPath):"
+$ACL = Get-Acl -Path $noUserPath
+$ACL.Access | ForEach-Object { $_ }
+
+#endregion Create NoUser Directory
 
 #region Provisioning Package
 Write-Output ""
@@ -495,12 +632,13 @@ ForEach ($Package in $ProvisioningPackages) {
 #Remove Built-in Apps
 & "$DirConfigurationScripts\Remove-BuiltinApps.ps1"
 
-#Remove Install Custom Apps
-$ExitCode = & "$DirCustomizations\Software\InstallSoftware.ps1" -Uninstall:$false
-Write-Log -EntryType Information -EventID 50 -Message "Software installed with exitcode $ExitCode."
+#Install Custom Apps
+$null = & "$DirCustomizations\Software\InstallSoftware.ps1"
+Write-Log -EntryType Information -EventID 50 -Message "Software installed with exitcode $LASTEXITCODE."
 
-& "$DirConfigurationScripts\Apply-UserShortcuts.ps1" -Iconpath "$DirKiosk\Icons" -Commercial
-Write-Log -EntryType Information -EventID 51 -Message "Desktops Shortcuts applied"
+# The Microsoft 365 web app shortcuts point at different URLs in the commercial and US Government clouds.
+& "$DirConfigurationScripts\Apply-UserShortcuts.ps1" -Iconpath "$DirKiosk\Icons" -Commercial:($EnvironmentAVD -eq 'AzureCloud')
+Write-Log -EntryType Information -EventID 51 -Message "Desktop and Start Menu shortcuts applied for $EnvironmentAVD"
 
 #endregion Applications
 
@@ -515,8 +653,11 @@ $Groups = @(
 )
 $WinXRoot = "$env:SystemDrive\Users\Default\Appdata\local\Microsoft\Windows\WinX\{0}"
 foreach ($grp in $Groups) { 
-    $HideDir = Get-ItemProperty -Path ($WinXRoot -f $grp )
-    $HideDir.Attributes = [System.IO.FileAttributes]::Hidden
+    $WinXDir = $WinXRoot -f $grp
+    If (Test-Path -Path $WinXDir) {
+        $HideDir = Get-Item -Path $WinXDir -Force
+        $HideDir.Attributes = $HideDir.Attributes -bor [System.IO.FileAttributes]::Hidden
+    }
 }
 
 #endregion Start Menu
@@ -525,23 +666,40 @@ foreach ($grp in $Groups) {
 
 $null = cmd /c lgpo.exe /t "$DirGPO\computer-userlogos.txt" '2>&1'
 Write-Log -EntryType Information -EventId 61 -Message "Configured User Logos to use default via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
-Write-Log -EntryType Information -EventId 62 -Message "Backing up current User Logo files to '$DirKiosk\UserLogos'."
-Copy-Item -Path "$env:ProgramData\Microsoft\User Account Pictures" -Destination "$DirKiosk\UserLogos" -Force
+Write-Log -EntryType Information -EventId 62 -Message "Backing up current User Logo files to '$DirKiosk\UserLogosBackup'."
+$null = New-Item -Path "$DirKiosk\UserLogosBackup" -ItemType Directory -Force
+Get-ChildItem -Path "$env:ProgramData\Microsoft\User Account Pictures" -File | Copy-Item -Destination "$DirKiosk\UserLogosBackup" -Force
 Write-Log -EntryType Information -EventId 63 -Message "Copying User Logo files to '$env:ProgramData\Microsoft\User Account Pictures'."
 Get-ChildItem -Path $DirUserLogos | Copy-Item -Destination "$env:ProgramData\Microsoft\User Account Pictures" -Force
 
 #endregion User Logos
 
 #region Local GPO Settings
+Write-Output ""
+Write-Output "*********************************"
+Write-Output "Setting Local GPOs"
+Write-Output "*********************************"
 
-# Set Smartcard Removal Action to 1 (Lock Workstation)
-Set-ItemProperty -Path  "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ScRemoveOption" -Value 1
+# Set Smartcard Removal Action to 1 (Lock Workstation). The value lives under Winlogon (security option
+# 'Interactive logon: Smart card removal behavior') and only works while the Smart Card Removal Policy service runs.
+$null = cmd /c lgpo.exe /s "$DirGPO\SmartCardLockWorkstation.inf" '2>&1'
+Write-Log -EntryType Information -EventId 69 -Message "Configured Smart Card removal behavior to lock the workstation.`nlgpo.exe Exit Code: [$LastExitCode]"
+Set-Service -Name SCPolicySvc -StartupType Automatic -ErrorAction SilentlyContinue
+Start-Service -Name SCPolicySvc -ErrorAction SilentlyContinue
 
-# Apply Non-Admin GPO settings
-
-$nonAdminsFile = 'nonadmins-MultiAppKiosk.txt'
-$null = cmd /c lgpo.exe /t "$DirGPO\$nonAdminsFile" '2>&1'
+# Lock down the Explorer interface for non-administrators
+$nonAdminsFile = Join-Path $DirGPO "nonadmins-MultiAppKiosk.txt"
+$null = cmd /c lgpo.exe /t "$nonAdminsFile" '2>&1'
 Write-Log -EntryType Information -EventId 70 -Message "Configured basic Explorer settings for kiosk user via Non-Administrators Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
+
+# Limit the Settings app for non-administrators to the Accessibility pages so users can adjust their assistive
+# technology settings. -ShowDisplaySettings adds the Display and Sound pages.
+$SettingsPages = 'easeofaccess-display;easeofaccess-visualeffects;easeofaccess-mousepointer;easeofaccess-cursor;easeofaccess-magnifier;easeofaccess-colorfilter;easeofaccess-highcontrast;easeofaccess-narrator;easeofaccess-audio;easeofaccess-closedcaptioning;easeofaccess-hearingaids;easeofaccess-speechrecognition;easeofaccess-keyboard;easeofaccess-mouse;easeofaccess-eyecontrol'
+If ($ShowDisplaySettings) {$SettingsPages = "display;sound;$SettingsPages"}
+$outfile = "$env:Temp\nonadmins-SettingsPages.txt"
+(Get-Content -Path (Join-Path $DirGPO 'nonadmins-ShowBasicSettings.txt')).Replace('<pages>', $SettingsPages) | Out-File $outfile
+$null = cmd /c lgpo.exe /t "$outfile" '2>&1'
+Write-Log -EntryType Information -EventId 70 -Message "Restricted the Settings app pages for non-administrators.`nlgpo.exe Exit Code: [$LastExitCode]"
 
 # Configure Feed URL for all Users
 $outfile = "$env:Temp\Users-AVDURL.txt"
@@ -552,8 +710,20 @@ $null = cmd /c lgpo.exe /t "$outfile" '2>&1'
 Write-Log -EntryType Information -EventId 71 -Message "Configured AVD Feed URL for all users via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
 
 # Disable Cortana, Search, Feeds, and Logon Animations. These are computer settings only.
-$null = cmd /c lgpo.exe /t "$DirGPO\Computer.txt" '2>&1'
+$MachineFile = Join-Path $DirGPO "Computer.txt"
+$null = cmd /c lgpo.exe /t $MachineFile '2>&1'
 Write-Log -EntryType Information -EventId 72 -Message "Disabled Cortana search, feeds, and login animations via Local Group Policy Object.`nlgpo.exe Exit Code: [$LastExitCode]"
+
+# Microsoft Edge settings. The base file applies to every deployment; the second file depends on how settings roam.
+$EdgeComputerFile = Join-Path $DirGPO "Edge-ComputerSettings.txt"
+$null = cmd /c lgpo.exe /t $EdgeComputerFile '2>&1'
+Write-Log -EntryType Information -EventId 72 -Message "Set Edge Group Policy Objects for Kiosk Mode.`nlgpo.exe Exit Code: [$LastExitCode]"
+
+$EdgeRoamingFile = Join-Path $DirGPO "Edge-Roaming-$SettingsRoaming.txt"
+If (Test-Path -Path $EdgeRoamingFile) {
+    $null = cmd /c lgpo.exe /t $EdgeRoamingFile '2>&1'
+    Write-Log -EntryType Information -EventId 72 -Message "Set Edge Group Policy Objects for settings roaming mode '$SettingsRoaming'.`nlgpo.exe Exit Code: [$LastExitCode]"
+}
 
 #endregion Local GPO Settings
 
@@ -644,7 +814,7 @@ Write-Log -EntryType Information -EventId 90 -Message "Applying AppLocker Policy
 $FileAppLockerKiosk = Join-Path -Path $DirAppConfigs -ChildPath "BrowserKioskAppLockerPolicy.xml"
 
 [xml]$Policy = Get-ApplockerPolicy -Local -XML
-If ($Policy.AppLockerPolicy.RuleCollection) {Get-ApplockerPolicy -Local -XML | out-file "\ApplockerPolicy.xml" -force}
+If ($Policy.AppLockerPolicy.RuleCollection) {Get-ApplockerPolicy -Local -XML | out-file "$DirKiosk\ApplockerPolicy.xml" -force}
 Else {Copy-Item "$FileAppLockerClear" -Destination "$DirKiosk\ApplockerPolicy.xml" -Force}
 
 Set-AppLockerPolicy -XmlPolicy "$FileAppLockerKiosk"
@@ -732,10 +902,67 @@ if (Get-ScheduledTask | Where-Object { $_.TaskName -eq "$TaskName" }) {
 }
 #endregion Keyboard Filter
 
+#region Settings Roaming
+
+If ($SettingsRoaming -eq 'OneDrive') {
+    $TaskName              = "(AVD Client) - Roam User Settings"
+    $TaskScriptEventSource = "Settings Roaming"
+    $TaskDescription       = "Saves and restores the signed-in user's browser favorites, selected browser settings and assistive technology settings through the user's OneDrive."
+    $TaskScriptFullName    = Join-Path -Path $DirSchedTasksScripts -ChildPath "Sync-UserSettings.ps1"
+    $ManifestFullName      = Join-Path -Path $DirAppConfigs -ChildPath "SettingsRoamingManifest.json"
+
+    Write-Log -EntryType Information -EventId 104 -Message "Creating Scheduled Task: '$TaskName'."
+    New-EventLog -LogName "Browser First AVD Kiosk" -Source $TaskScriptEventSource -ErrorAction SilentlyContinue
+
+    # Runs as SYSTEM so PowerShell does not have to be allowed for kiosk users. Triggers: every sign-in,
+    # every workstation lock and every 5 minutes (so recent changes reach OneDrive before the user signs out).
+    $TriggerLogon  = New-ScheduledTaskTrigger -AtLogOn
+    $TriggerRepeat = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 5)
+    $TaskTriggers  = @($TriggerLogon, $TriggerRepeat)
+    Try {
+        $StateChangeClass = Get-CimClass -Namespace 'Root/Microsoft/Windows/TaskScheduler' -ClassName 'MSFT_TaskSessionStateChangeTrigger'
+        # StateChange 7 = session lock
+        $TaskTriggers += New-CimInstance -CimClass $StateChangeClass -Property @{StateChange = 7} -ClientOnly
+    }
+    Catch {
+        Write-Log -EntryType Warning -EventId 105 -Message "Could not add the workstation lock trigger to '$TaskName': $($_.Exception.Message)"
+    }
+
+    $TaskAction    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$TaskScriptFullName`" -ManifestPath `"$ManifestFullName`""
+    $TaskPrincipal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $TaskSettings  = New-ScheduledTaskSettingsSet `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
+        -MultipleInstances IgnoreNew `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable
+
+    Register-ScheduledTask -TaskName $TaskName `
+        -Description $TaskDescription `
+        -Action $TaskAction `
+        -Settings $TaskSettings `
+        -Principal $TaskPrincipal `
+        -Trigger $TaskTriggers `
+        -Force
+
+    if (Get-ScheduledTask | Where-Object { $_.TaskName -eq "$TaskName" }) {
+        Write-Log -EntryType Information -EventId 106 -Message "Scheduled Task '$TaskName' created successfully."
+    } else {
+        Write-Log -EntryType Error -EventId 107 -Message "Scheduled Task '$TaskName' not created."
+        $ScriptExitCode = 1618
+    }
+}
+Else {
+    Write-Log -EntryType Information -EventId 104 -Message "Settings roaming mode is '$SettingsRoaming'. The OneDrive save and restore task is not installed."
+}
+
+#endregion Settings Roaming
+
 Write-Log -EntryType Information -EventId 110 -Message "Updating Group Policy"
 $gpupdate = Start-Process -FilePath 'GPUpdate' -ArgumentList '/force' -Wait -PassThru
 Write-Log -EntryType Information -EventID 111 -Message "GPUpdate Exit Code: [$($GPUpdate.ExitCode)]"
 $null = cmd /c reg add 'HKLM\Software\Kiosk' /v Version /d "$($version.ToString())" /t REG_SZ /f
 Write-Log -EntryType Information -EventId 112 -Message "Ending Kiosk Mode Configuration version '$($version.ToString())' with Exit Code: $ScriptExitCode"
-Pause
+# Only wait for a key press when someone is watching (ManualStart.bat). Unattended deployments must not block.
+If ([Environment]::UserInteractive -and $Host.Name -eq 'ConsoleHost') {Pause}
 Exit $ScriptExitCode

@@ -1,0 +1,15 @@
+4/16/2025 7:13:45 AM Info ICD Started
+4/16/2025 7:13:49 AM Warning Image customization functionality is disabled because imaging tools are not installed.
+4/16/2025 7:13:49 AM Warning Exception on reading AutoLaunchConfigScenarioId. The key 'AutoLaunchConfigScenarioId' does not exist in the appSettings configuration section.
+4/16/2025 7:13:49 AM Warning Exception on reading SUSPCAriaIngestionKey. The key 'SUSPCAriaIngestionKey' does not exist in the appSettings configuration section.
+4/16/2025 7:13:49 AM Warning Exception on reading ICDWindowTitle. The key 'ICDWindowTitle' does not exist in the appSettings configuration section.
+4/16/2025 7:13:49 AM Warning Exception on reading ICDWindowHeight. The key 'ICDWindowHeight' does not exist in the appSettings configuration section.
+4/16/2025 7:13:49 AM Warning Exception on reading ICDWindowWidth. The key 'ICDWindowWidth' does not exist in the appSettings configuration section.
+4/16/2025 7:13:49 AM Warning Exception on reading ICDWindowMinHeight. The key 'ICDWindowMinHeight' does not exist in the appSettings configuration section.
+4/16/2025 7:13:49 AM Warning Exception on reading ICDWindowMinWidth. The key 'ICDWindowMinWidth' does not exist in the appSettings configuration section.
+4/16/2025 7:13:49 AM Warning Exception on reading ICDWindowState. The key 'ICDWindowState' does not exist in the appSettings configuration section.
+4/16/2025 7:13:55 AM Info Project 'C:\Users\Silas\OneDrive\Documents\Windows Imaging and Configuration Designer (WICD)\Project_5\Project_5.icdproj.xml' loaded successfully
+4/16/2025 7:13:55 AM Info Loaded Knobs schema hive at C:\Program Files\WindowsApps\Microsoft.WindowsConfigurationDesigner_2025.225.0.0_x86__8wekyb3d8bbwe\icd\Microsoft-Desktop-Provisioning.dat
+4/16/2025 7:13:55 AM Error WpxGetFileEdition (onecore\base\ntsetup\wpx\core\store.cpp:103) - 0x80070002:
+4/16/2025 7:13:55 AM Error     No SKU information file C:\Program Files\WindowsApps\Microsoft.WindowsConfigurationDesigner_2025.225.0.0_x86__8wekyb3d8bbwe\icd\Microsoft-Desktop-Provisioning.sku.xml available for store file C:\Program Files\WindowsApps\Microsoft.WindowsConfigurationDesigner_2025.225.0.0_x86__8wekyb3d8bbwe\icd\Microsoft-Desktop-Provisioning.dat
+4/16/2025 7:13:55 AM Info Loaded settings from Windows Unknown Unknown

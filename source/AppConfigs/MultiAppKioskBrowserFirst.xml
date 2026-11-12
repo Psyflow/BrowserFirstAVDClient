@@ -4,63 +4,71 @@
     <Profile Id="{9A2A490F-10F6-4764-974A-43B19E722C23}">
       <AllAppsList>
         <AllowedApps>
-        
+
           <!-- === Basic Apps === -->
           <App DesktopAppPath="C:\Windows\explorer.exe" />
-          <App DesktopAppPath="%windir%\System32\wscript.exe" />
+          <App DesktopAppPath="C:\Windows\System32\wscript.exe" />
           <App DesktopAppPath="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" />
           <App DesktopAppPath="C:\Program Files\Microsoft OneDrive\OneDrive.exe" />
-          
+
           <!-- === VDI Access Tools === -->
-          <App DesktopAppPath="C:\Program Files\Amazon Web Services, Inc\Amazon WorkSpaces\Workspaces.exe" />
+          <!-- Windows App replaces the retired Remote Desktop client (msrdcw.exe / msrdc.exe). -->
+          <App AppUserModelId="MicrosoftCorporationII.Windows365_8wekyb3d8bbwe!Windows365" />
           <App DesktopAppPath="C:\Program Files\Remote Desktop\msrdcw.exe" />
           <App DesktopAppPath="C:\Program Files\Remote Desktop\msrdc.exe" />
+          <App DesktopAppPath="C:\Program Files\Amazon Web Services, Inc\Amazon WorkSpaces\Workspaces.exe" />
           <App DesktopAppPath="C:\Program Files (x86)\Citrix\ICA Client\wfcrun32.exe" />
           <App DesktopAppPath="C:\Program Files (x86)\Citrix\SelfServicePlugin\SelfService.exe" />
           <App DesktopAppPath="C:\Program Files (x86)\Citrix\ICA Client\concentr.exe" />
-          
+
           <!-- === ACCESSIBILITY TOOLS === -->
           <App AppUserModelId="windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" />
-          <App DesktopAppPath="C:\WINDOWS\system32\Narrator.exe" />
+          <App DesktopAppPath="C:\Windows\System32\Narrator.exe" />
           <App DesktopAppPath="C:\Windows\System32\osk.exe" />
           <App DesktopAppPath="C:\Windows\System32\Magnify.exe" />
           <App DesktopAppPath="C:\Windows\System32\VoiceAccess.exe" />
           <App DesktopAppPath="C:\Windows\System32\LiveCaptions.exe" />
 
-          <!-- === Office Suite Shortcuts === -->
-          <App DesktopAppPath="C:\Users\Public\Desktop\Word.lnk" />
-          <App DesktopAppPath="C:\Users\Public\Desktop\Excel.lnk" />
-          <App DesktopAppPath="C:\Users\Public\Desktop\PowerPoint.lnk" />
-          <App DesktopAppPath="C:\Users\Public\Desktop\Outlook.lnk" />
-          <App DesktopAppPath="C:\Users\Public\Desktop\Teams.lnk" />
-          <App DesktopAppPath="C:\Users\Public\Desktop\OneDrive.lnk" />
-          <App DesktopAppPath="C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Amazon WorkSpaces.lnk" />
-          <App DesktopAppPath="C:\Users\Public\Desktop\Ease of Access\Ease of Access.lnk" />
-
         </AllowedApps>
       </AllAppsList>
+      <!-- Start pins must point at shortcuts in a Start Menu Programs folder. Apply-UserShortcuts.ps1 creates the
+           Microsoft 365 web app and Ease of Access shortcuts there. Pins whose target is not installed are ignored. -->
       <v5:StartPins>
         <![CDATA[
           {
             "pinnedList": [
-              { "desktopAppLink": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" },
-              { "desktopAppLink": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Amazon WorkSpaces.lnk" },
-              { "packagedAppId": "Microsoft.RemoteDesktop.WPF" },
-              { "packagedAppId": "Citrix.Workspace" },
-              { "packagedAppId": "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel" },
-              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Ease of Access\\Ease of Access.lnk" }
-              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Excel.lnk" },
-              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Word.lnk" },
-              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\PowerPoint.lnk" },
-              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Outlook.lnk" },
-              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Teams.lnk" },
-              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\OneDrive.lnk" },
-              { "desktopAppLink": "C:\\Users\\Public\\Desktop\\Ease of Access\\Ease of Access.lnk" }
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Microsoft Edge.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Outlook.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Teams.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Word.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Excel.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\PowerPoint.lnk"},
+              {"packagedAppId":"MicrosoftCorporationII.Windows365_8wekyb3d8bbwe!Windows365"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Citrix Workspace.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Amazon WorkSpaces\\Amazon WorkSpaces.lnk"},
+              {"packagedAppId":"windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Ease of Access Tools\\Narrator.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Ease of Access Tools\\Magnifier.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Ease of Access Tools\\On-Screen Keyboard.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Ease of Access Tools\\Voice Access.lnk"},
+              {"desktopAppLink":"%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Ease of Access Tools\\Live Captions.lnk"}
             ]
           }
         ]]>
       </v5:StartPins>
       <Taskbar ShowTaskbar="true"/>
+      <!-- Windows 11 taskbar pins are set with v5:TaskbarLayout. -->
+      <v5:TaskbarLayout>
+        <![CDATA[<LayoutModificationTemplate xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification" xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout" Version="1">
+  <CustomTaskbarLayoutCollection PinListPlacement="Replace">
+    <defaultlayout:TaskbarLayout>
+      <taskbar:TaskbarPinList>
+        <taskbar:DesktopApp DesktopApplicationLinkPath="%ALLUSERSPROFILE%\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk" />
+      </taskbar:TaskbarPinList>
+    </defaultlayout:TaskbarLayout>
+  </CustomTaskbarLayoutCollection>
+</LayoutModificationTemplate>]]>
+      </v5:TaskbarLayout>
     </Profile>
   </Profiles>
   <Configs>

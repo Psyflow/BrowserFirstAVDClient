@@ -1,0 +1,97 @@
+; Enable Files On-Demand
+; Allows users to access OneDrive files without downloading them locally, saving disk space.
+Computer
+Software\Policies\Microsoft\OneDrive
+FilesOnDemandEnabled
+DWORD:1
+
+; Require Users to Confirm Large Delete Operations
+; Prompts users to confirm before deleting a large number of synced files, preventing accidental mass deletions.
+Computer
+Software\Policies\Microsoft\OneDrive
+ForcedLocalMassDeleteDetection
+DWORD:1
+
+; Disable Offline Mode in OneDrive on the Web
+; Prevents users from enabling offline mode in OneDrive on the web, ensuring data remains online-only.
+Computer
+Software\Policies\Microsoft\OneDrive
+DisableOfflineMode
+DWORD:1
+
+; Disable Offline Mode for External Libraries
+; Disables offline mode for libraries shared from other organizations, maintaining data consistency.
+Computer
+Software\Policies\Microsoft\OneDrive
+DisableOfflineModeForExternalLibraries
+DWORD:1
+
+; Disable 'Send Feedback' Option
+; Removes the option for users to send feedback to Microsoft from the OneDrive application.
+Computer
+Software\Policies\Microsoft\OneDrive
+EnableSendFeedback
+DWORD:0
+
+; Disable Survey Campaigns
+; Prevents OneDrive from displaying survey prompts to users, reducing distractions.
+Computer
+Software\Policies\Microsoft\OneDrive
+EnableSurveyCampaigns
+DWORD:0
+
+; Disable 'Contact Support' Option
+; Removes the option for users to contact Microsoft support directly from the OneDrive application.
+Computer
+Software\Policies\Microsoft\OneDrive
+EnableContactSupport
+DWORD:0
+
+; Silently Move Known Folders to OneDrive
+; Automatically redirects Desktop, Documents, and Pictures folders to OneDrive without user interaction.
+Computer
+Software\Policies\Microsoft\OneDrive
+KFMSilentOptIn
+SZ:{TenantID}
+
+; Suppress Notification After Known Folder Move
+; Prevents OneDrive from showing a notification after known folders have been redirected.
+Computer
+Software\Policies\Microsoft\OneDrive
+KFMSilentOptInWithNotification
+DWORD:0
+
+; Exclude Desktop from Known Folder Move
+; Specifies not to redirect the Desktop folder to OneDrive during known folder move.
+Computer
+Software\Policies\Microsoft\OneDrive
+KFMSilentOptInDesktop
+DWORD:0
+
+; Include Documents in Known Folder Move
+; Specifies to redirect the Documents folder to OneDrive during known folder move.
+Computer
+Software\Policies\Microsoft\OneDrive
+KFMSilentOptInDocuments
+DWORD:1
+
+; Include Pictures in Known Folder Move
+; Specifies to redirect the Pictures folder to OneDrive during known folder move.
+Computer
+Software\Policies\Microsoft\OneDrive
+KFMSilentOptInPictures
+DWORD:1
+
+; Enable Silent Account Configuration
+; Automatically signs in users to OneDrive with their Windows credentials, streamlining setup.
+Computer
+Software\Policies\Microsoft\OneDrive
+SilentAccountConfig
+DWORD:1
+
+; Prompt Users to Move Known Folders with Wizard
+; Prompts users to move their known folders to OneDrive using a setup wizard, providing guidance.
+Computer
+Software\Policies\Microsoft\OneDrive
+KFMOptInWithWizard
+SZ:{TenantID}

@@ -82,13 +82,6 @@ Software\Policies\Microsoft\Windows\Windows Search
 AllowSearchToUseLocation
 DWORD:0
 
-; Disable Indexing for All Other Locations
-; Prevents Windows Search from indexing specific paths, effectively disabling indexing for those locations.
-Computer
-Software\Policies\Microsoft\Windows\Windows Search
-PreventIndexingCertainPaths
-REG_MULTI_SZ: C:\;D:\;E:\;F:\
-
 ; Enable OneDrive Integration in Search
 ; Allows users to search their OneDrive files via Windows Search.
 Computer
@@ -96,155 +89,9 @@ Software\Policies\Microsoft\Windows\Windows Search
 AllowCloudSearch
 DWORD:1
 
-; Disable Indexing of File Types
-; Prevents specific file types from being indexed by Windows Search.
-Computer
-Software\Policies\Microsoft\Windows\Windows Search
-PreventIndexingCertainFileTypes
-REG_MULTI_SZ: .exe;.dll;.tmp;.log
-
 ; Disable Search History
 ; Prevents Windows Search from saving search history locally.
 Computer
 Software\Policies\Microsoft\Windows\Windows Search
 AllowSearchToSaveHistory
 DWORD:0
-
-; Configure OneDrive Policies
-; These settings control OneDrive behavior for all users on the system, including folder redirection, account configuration, and user experience.
-
-; Enable Files On-Demand
-; Ensures that OneDrive files are accessible without downloading them locally.
-Computer
-Software\Policies\Microsoft\OneDrive
-FilesOnDemandEnabled
-DWORD:1
-
-; Enable Silent Known Folder Move for Documents
-; Automatically redirects the Documents folder to OneDrive without user interaction.
-Computer
-Software\Policies\Microsoft\OneDrive
-KFMSilentOptInDocuments
-DWORD:1
-
-; Enable Silent Known Folder Move for Pictures
-; Automatically redirects the Pictures folder to OneDrive without user interaction.
-Computer
-Software\Policies\Microsoft\OneDrive
-KFMSilentOptInPictures
-DWORD:1
-
-; Enable Silent Account Configuration
-; Automatically configures OneDrive accounts for users without requiring manual sign-in.
-Computer
-Software\Policies\Microsoft\OneDrive
-SilentAccountConfig
-DWORD:1
-
-; Enable Files On-Demand
-; Allows users to access OneDrive files without downloading them locally, saving disk space.
-Computer
-Software\Policies\Microsoft\OneDrive
-FilesOnDemandEnabled
-DWORD:1
-
-; Disable First Run Experience Animation
-; Prevents the animation and tutorial from appearing when OneDrive is launched for the first time.
-Computer
-Software\Policies\Microsoft\OneDrive
-DisableFREAnimation
-DWORD:1
-
-; Disable First Run Experience Tutorial
-; Prevents the tutorial from appearing when OneDrive is launched for the first time.
-Computer
-Software\Policies\Microsoft\OneDrive
-DisableFRETutorial
-DWORD:1
-
-; Enable Shared Content Delete Confirmation
-; Prompts users for confirmation when deleting shared content in OneDrive.
-Computer
-Software\Policies\Microsoft\OneDrive
-SharedContentDeleteConfirmation
-DWORD:1
-
-; Disable Personal OneDrive Sync
-; Prevents users from syncing personal OneDrive accounts, restricting usage to organizational accounts.
-Computer
-Software\Policies\Microsoft\OneDrive
-DisablePersonalSync
-DWORD:1
-
-; Enable OneDrive Auto-Start
-; Ensures that OneDrive starts automatically when users log in.
-Computer
-Software\Policies\Microsoft\OneDrive
-EnableAutoStart
-DWORD:1
-
-; Disable First Delete Dialog
-; Prevents the dialog from appearing the first time a user deletes a file from OneDrive.
-Computer
-Software\Policies\Microsoft\OneDrive
-DisableFirstDeleteDialog
-DWORD:1
-
-; Configure Microsoft Edge Policies
-; These settings control the behavior of Microsoft Edge for all users on the system.
-
-; Hide First Run Experience
-; Prevents the first run experience and welcome page from appearing when Microsoft Edge is launched for the first time.
-Computer
-Software\Policies\Microsoft\Edge
-HideFirstRunExperience
-DWORD:1
-
-; No account setup on first login
-; Don't show account setup prompts (sync, personalization)
-Computer
-Software\Policies\Microsoft\Edge
-SyncDisabled
-DWORD:1
-
-; Enable Browser Sign-In
-; Allows users to sign in to Microsoft Edge with their Microsoft account.
-Computer
-Software\Policies\Microsoft\Edge
-BrowserSignin
-DWORD:1
-
-; Force Sign-In with Primary Account
-; Requires users to sign in to Microsoft Edge using their primary account.
-Computer
-Software\Policies\Microsoft\Edge
-ForceSignInWithPrimaryAccount
-DWORD:1
-
-; Hide Profile Picker
-; Do not show profile picker before browser launch
-Computer
-Software\Policies\Microsoft\Edge
-HideProfilePicker
-DWORD:1
-
-; Enable Profile Picker
-; Restrict Sign-In to Only .mil and .gov Domains
-; Computer
-; Software\Policies\Microsoft\Edge
-; RestrictSigninToPattern
-; REG_SZ:.*@.*\.(mil|gov)
-
-; Set User Data Directory
-; Specifies the directory where Microsoft Edge stores user data, such as profiles and settings.
-Computer
-Software\Policies\Microsoft\Edge
-UserDataDir
-SZ:${documents}\EdgeProfile
-
-; Set Default Download Directory
-; Specifies the default directory for downloads in Microsoft Edge.
-Computer
-Software\Policies\Microsoft\Edge
-DownloadDirectory
-SZ:${documents}\Downloads

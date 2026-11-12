@@ -1,5 +1,14 @@
 # Version History
 
+## Browser First 2.0.0
+
+This is a [Feature] and [Bug Fix] release of the Browser First fork. The entries below it are the upstream Azure/AVDClientKiosk history.
+
+1. Added settings roaming (`-SettingsRoaming`): Edge favorites, selected Edge settings and Windows accessibility settings follow the user through OneDrive. Works in GCC High / DoD.
+2. Replaced the retired Remote Desktop client (MSI) with Windows App in the installer, the allowed apps and the Start pins.
+3. The Edge profile is no longer stored in OneDrive (`UserDataDir`). Favorites from that location are migrated once.
+4. Fixed: non-administrator lockdown policy, STIGs, Settings page restriction, smart card removal lock, AppLocker backup, user logo backup, Start pins, taskbar pin, US Government shortcut URLs and the removal script were not being applied or did not work.
+
 ## 6.0 (Current Version)
 
 This is a [feature] release.

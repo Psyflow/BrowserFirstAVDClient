@@ -10,7 +10,7 @@ function Set-ShellLauncherConfiguration {
         [String] $FilePath
     )
 
-    $Xml = Get-Content -Path $FilePath
+    $Xml = Get-Content -Path $FilePath -Raw
     $EscapedXml = [System.Security.SecurityElement]::Escape($Xml)
     $AssignedAccessCsp = Get-AssignedAccessCspBridgeWmi
     $AssignedAccessCsp.ShellLauncher = $EscapedXml
@@ -40,7 +40,7 @@ function Set-MultiAppKioskConfiguration {
         [string] $FilePath
     )
 
-    $Xml = Get-Content -Path $FilePath
+    $Xml = Get-Content -Path $FilePath -Raw
     $AssignedAccessCsp = Get-AssignedAccessCspBridgeWmi
     $EncodedXml = [System.Net.WebUtility]::HtmlEncode($Xml)
     $AssignedAccessCsp.Configuration = $EncodedXml

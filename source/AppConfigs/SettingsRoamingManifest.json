@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "storeFolderName": "KioskSettings",
+  "newStoreGraceMinutes": 5,
+  "notifyUser": true,
+  "registry": [
+    { "name": "Accessibility options (keyboard, sound, contrast)", "key": "Control Panel\\Accessibility" },
+    { "name": "Text size, pointer size and colour, text cursor", "key": "Software\\Microsoft\\Accessibility" },
+    { "name": "Assistive tools that start at sign-in", "key": "Software\\Microsoft\\Windows NT\\CurrentVersion\\Accessibility" },
+    { "name": "Narrator", "key": "Software\\Microsoft\\Narrator", "excludeSubkeys": [ "NoRoam" ] },
+    { "name": "Magnifier", "key": "Software\\Microsoft\\ScreenMagnifier" },
+    { "name": "On-Screen Keyboard", "key": "Software\\Microsoft\\Osk" },
+    { "name": "Colour filters", "key": "Software\\Microsoft\\ColorFiltering" },
+    { "name": "Caption style", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ClosedCaptioning" },
+    { "name": "Mouse pointer scheme", "key": "Control Panel\\Cursors" }
+  ],
+  "files": [
+    {
+      "name": "EdgeFavorites",
+      "base": "LocalAppData",
+      "path": "Microsoft\\Edge\\User Data\\Default",
+      "include": [ "Bookmarks" ],
+      "recurse": false,
+      "blockingProcess": "msedge.exe"
+    },
+    {
+      "name": "PointerFiles",
+      "base": "LocalAppData",
+      "path": "Microsoft\\Windows\\Cursors",
+      "include": [ "*.cur" ],
+      "recurse": false
+    }
+  ],
+  "jsonPrefs": [
+    {
+      "name": "EdgeSettings",
+      "base": "LocalAppData",
+      "path": "Microsoft\\Edge\\User Data\\Default\\Preferences",
+      "blockingProcess": "msedge.exe",
+      "keys": [
+        "partition.default_zoom_level",
+        "partition.per_host_zoom_levels",
+        "webkit.webprefs",
+        "settings.a11y",
+        "accessibility.captions",
+        "bookmark_bar.show_on_all_tabs",
+        "intl.accept_languages",
+        "intl.selected_languages",
+        "spellcheck.dictionaries",
+        "browser.enable_spellchecking"
+      ]
+    }
+  ]
+}

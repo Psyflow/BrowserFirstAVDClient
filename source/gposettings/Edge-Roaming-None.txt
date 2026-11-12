@@ -1,0 +1,26 @@
+; Settings roaming mode 'None': nothing leaves the device.
+
+Computer
+Software\Policies\Microsoft\Edge
+SyncDisabled
+DWORD:1
+
+Computer
+Software\Policies\Microsoft\Edge
+ForceSync
+DELETE
+
+Computer
+Software\Policies\Microsoft\Edge\SyncTypesListDisabled
+*
+DELETEALLVALUES
+
+Computer
+Software\Policies\Microsoft\Edge
+StartupBoostEnabled
+DELETE
+
+Computer
+Software\Policies\Microsoft\Edge
+BackgroundModeEnabled
+DELETE

@@ -1,20 +1,6 @@
+; Limits the Settings app to the listed pages for non-administrators.
+; '<pages>' is replaced by Set-BrowserKioskSettings.ps1 with a semicolon separated list of ms-settings page names.
 User:Non-Administrators
 Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
 SettingsPageVisibility
-SZ:showonly:display;sound;easeofaccess;personalization
-
-User:Non-Administrators
-Software\Microsoft\Windows\CurrentVersion\Policies\Explorer
-RestrictCpl
-DWORD:1
-
-User:Non-Administrators
-Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\RestrictCpl
-1
-SZ:Microsoft.Display
-2
-SZ:Microsoft.Sound
-3
-SZ:Microsoft.EaseOfAccess
-4
-SZ:Microsoft.Personalization
+SZ:showonly:<pages>

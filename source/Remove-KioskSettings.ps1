@@ -22,10 +22,6 @@ $KioskDir = "$env:SystemDrive\KioskSettings"
 $RegKeysRestoreFile = "$KioskDir\RegKeyRestore.csv"
 $AppLockerRestoreFile = "$KioskDir\ApplockerPolicy.xml"
 
-foreach ($key in $Directories.Keys) {
-    Set-Variable -Name "Dir$key" -Value (Join-Path -Path $Script:Dir -ChildPath $Directories[$key])
-}
-
 
 #endregion Set Variables
 
@@ -42,6 +38,7 @@ If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
                 "String"          { $Script:Args += "-$k `"$paramValue`"" }
                 "Int32"           { $Script:Args += "-$k $paramValue" }
                 "Boolean"         { $Script:Args += "-$k `$$paramValue" }
+                default           { $Script:Args += "-$k `"$paramValue`"" }
             }
         }
 
@@ -145,9 +142,42 @@ Write-Log -EntryType Information -EventId 5 -Message "Executing '$Script:FullNam
 
 #region Main Script
 
-# App uninstallation
-& "$DirConfigurationScripts\Install-OneDrive.ps1" -Remove
-& "$DirCustomizations\Software\InstallSoftware.ps1" -Uninstall:$false
+# Clear the Multi-App Kiosk (Assigned Access) configuration so users get the normal shell back.
+Try {
+    . "$DirConfigurationScripts\AssignedAccessWmiBridgeHelpers.ps1"
+    If (Get-MultiAppKioskConfiguration) {
+        Write-Log -EventId 6 -EntryType Information -Message "Removing Multi-App Kiosk Configuration."
+        Clear-MultiAppKioskConfiguration
+    }
+}
+Catch {
+    Write-Log -EventId 6 -EntryType Warning -Message "Could not clear the Multi-App Kiosk Configuration: $($_.Exception.Message)"
+}
+
+# The items below are put straight back by the installer, so they are only removed on a full removal.
+If (-not $Reinstall) {
+    # App uninstallation. OneDrive is left installed.
+    Write-Log -EventId 6 -EntryType Information -Message "Uninstalling custom software."
+    $null = & "$DirCustomizations\Software\InstallSoftware.ps1" -Uninstall
+
+    # Shared PC provisioning package
+    Try {
+        Get-ProvisioningPackage -AllInstalledPackages | Where-Object {$_.PackageName -like 'SharedPC*'} | ForEach-Object {
+            Write-Log -EventId 6 -EntryType Information -Message "Removing provisioning package '$($_.PackageName)'."
+            $null = Uninstall-ProvisioningPackage -PackageId $_.PackageId -QuietInstall
+        }
+    }
+    Catch {
+        Write-Log -EventId 6 -EntryType Warning -Message "Could not remove the Shared PC provisioning package: $($_.Exception.Message)"
+    }
+
+    # Edge and OneDrive machine policies
+    $null = cmd /c "$ToolsDir\lgpo.exe" /t "$GPODir\remove-Edge-OneDrive-ComputerSettings.txt" '2>&1'
+    Write-Log -EventId 6 -EntryType Information -Message "Removed Edge and OneDrive machine policies.`nlgpo.exe Exit Code: [$LastExitCode]"
+}
+
+# Desktop and Start Menu shortcuts
+& "$DirConfigurationScripts\Apply-UserShortcuts.ps1" -IconPath "$Script:Dir\Icons" -Remove
 
 
 # Removing Non-Administrators Local GPO.
@@ -208,7 +238,7 @@ If (Test-Path -Path $KioskDir) {
             [GC]::Collect()
             [GC]::WaitForPendingFinalizers()
             Start-Sleep -Seconds 5
-            $HiveUnloadResult = Start-Process -FilePath "REG.exe" -ArgumentList "UNLOAD", "HKLM\Default" -Wait
+            $HiveUnloadResult = Start-Process -FilePath "REG.exe" -ArgumentList "UNLOAD", "HKLM\Default" -Wait -PassThru -NoNewWindow
             $ExitCode = $HiveUnloadResult.ExitCode
         }
         If ($ExitCode -eq 0) {
@@ -231,15 +261,41 @@ If (Test-Path -Path $KioskDir) {
     }
 
     # Restore User Logos
-    If (Test-Path -Path "$kioskDir\UserLogos") {
+    If (Test-Path -Path "$kioskDir\UserLogosBackup") {
         Write-Log -EntryType Information -EventId 17 -Message "Restoring User Logo Files"
-        Get-ChildItem -Path "$KioskDir\UserLogos" | Copy-Item -Destination "$env:ProgramData\Microsoft\User Account Pictures" -Force
+        Get-ChildItem -Path "$KioskDir\UserLogosBackup" -File | Copy-Item -Destination "$env:ProgramData\Microsoft\User Account Pictures" -Force
         $null = cmd /c "$ToolsDir\lgpo.exe" /t "$GPODir\Remove-computer-userlogos.txt" '2>&1'
     }
 
     # Remove Kiosk Settings Directory
     Write-Log -EventId 18 -EntryType Information -Message "Removing '$KioskDir' Directory"
     Remove-Item -Path $KioskDir -Recurse -Force 
+}
+
+# Remove NoUser Folder if it exists
+# The folder only grants Users read access and denies write to Administrators (which includes SYSTEM),
+# so ownership and permissions have to be reset before it can be deleted.
+$NoUserfolder = "C:\Users\NoUser"
+
+if (Test-Path -Path $NoUserfolder) {
+    # Take ownership for the Administrators group
+    takeown.exe /f $NoUserfolder /a /r /d y | Out-Null
+
+    # Replace the permissions with inherited defaults
+    icacls.exe $NoUserfolder /reset /T /C /Q | Out-Null
+    icacls.exe $NoUserfolder /inheritance:e /Q | Out-Null
+
+    # Remove the folder
+    Remove-Item -Path $NoUserfolder -Recurse -Force -ErrorAction SilentlyContinue
+
+    If (Test-Path -Path $NoUserfolder) {
+        Write-Log -EventId 23 -EntryType Warning -Message "$NoUserfolder could not be removed."
+    }
+    Else {
+        Write-Log -EventId 23 -EntryType Information -Message "$NoUserfolder removed successfully."
+    }
+} else {
+    Write-Log -EventId 24 -EntryType Warning -Message "$NoUserfolder does not exist."
 }
 
 # Remove Scheduled Tasks

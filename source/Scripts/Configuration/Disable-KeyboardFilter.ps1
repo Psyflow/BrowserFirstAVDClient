@@ -20,7 +20,7 @@ $Classes = @(
 )
 
 ForEach ($Class in $Classes) {
-    $WMIObject = Get-WMIObject -Class WEKF_PredefinedKey -Namespace $Namespace -ErrorAction SilentlyContinue
+    $WMIObject = Get-WMIObject -Class $Class -Namespace $Namespace -ErrorAction SilentlyContinue
     If ($WMIObject) {
         $WMIObject | ForEach-Object {
             if ($_.Enabled) {

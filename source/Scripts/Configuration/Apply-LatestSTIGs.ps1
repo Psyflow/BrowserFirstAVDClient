@@ -3,18 +3,18 @@
     Applies DISA STIG Group Policy Objects (GPOs) and related configurations from local or remote packages.
 
 .DESCRIPTION
-    This script automates the deployment of STIG-compliant GPOs using LGPO.exe. It supports retrieving GPO packages from 
-    the public DoD STIG site or from local or network sources. It handles copying ADMX/ADML templates, executing LGPO.exe 
+    This script automates the deployment of STIG-compliant GPOs using LGPO.exe. It supports retrieving GPO packages from
+    the public DoD STIG site or from local or network sources. It handles copying ADMX/ADML templates, executing LGPO.exe
     to apply each policy, and optionally applying application-specific STIG templates.
 
-    The script also supports delta GPO packages that are applied after the baseline STIGs. These GPOs are sorted by their 
-    full path to allow for controlled application order. In the example below, the STIGs in C:\STIGs\Delta\2\ would be 
+    The script also supports delta GPO packages that are applied after the baseline STIGs. These GPOs are sorted by their
+    full path to allow for controlled application order. In the example below, the STIGs in C:\STIGs\Delta\2\ would be
     applied after those in C:\STIGs\Delta\1\:
 
         - C:\STIGs\Delta\1\GPOs\Complicated_Stuff.GPO
         - C:\STIGs\Delta\2\GPOs\Important_Stuff.GPO
 
-    The script also performs additional Windows hardening, including DEP enforcement, 
+    The script also performs additional Windows hardening, including DEP enforcement,
     disabling legacy features (e.g., PowerShell v2, Secondary Logon), and applying registry-based mitigations.
 
 .PARAMETER LocalPkg
@@ -77,7 +77,7 @@ param (
     [Parameter(Mandatory = $false)]
     [switch]$LocalPkg,
 
-    # LocalPath is required when using -UseLocalPackage to point to the local STIG Zip package.
+    # LocalZipPath is required when using -LocalPkg to point to the local STIG Zip package.
     [Parameter(Mandatory = $false)]
     [ValidateScript({If ($_ -notmatch "\.zip$") {Throw "FilePath must end in .zip"} $true })]
     [string]$LocalZipPath,
@@ -103,11 +103,11 @@ param (
     )]
     [string[]]$ApplyAppSTIGs,
 
-    # If this switch is specified, delta GPOs in the corect format can be applied.
+    # If this switch is specified, delta GPOs in the correct format can be applied.
     [Parameter(Mandatory = $false)]
     [switch]$DeltaGPO,
 
-    # DeltapPath is required when using -DeltaGPO.
+    # DeltaPath is required when using -DeltaGPO.
     [Parameter(Mandatory = $false)]
     [ValidateScript({
     if (-not (Test-Path $_)) {throw "Path does not exist: $_"}
@@ -118,7 +118,7 @@ param (
     })]
     [string]$DeltaPath,
 
-    # If this switch is specified, the function uses a local or network STIG package instead of parsing the DoD STIG website.
+    # If this switch is specified, runs each LGPO command in test mode instead of actually applying policies.
     [Parameter(Mandatory = $false)]
     [switch]$TestGPOInstall
 
@@ -151,7 +151,7 @@ If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
 
         If ($ScriptArgsString) {
             Start-Process -FilePath $PowerShell64 -ArgumentList "-File `"$($Script:FullName)`" $ScriptArgsString" -Wait -NoNewWindow
-        } 
+        }
         Else {
             Start-Process -FilePath $PowerShell64 -ArgumentList "-File `"$($Script:FullName)`"" -Wait -NoNewWindow
         }
@@ -163,9 +163,9 @@ If (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
 }
 
 # Validate the Local variables
-$LGPOInstaled = Test-Path -Path "$env:SystemRoot\System32\LGPO.exe"
+$LGPOInstalled = Test-Path -Path "$env:SystemRoot\System32\LGPO.exe"
 If ($LocalPkg.IsPresent) {If (-not $LocalZipPath) {Throw "ERROR: -LocalZipPath is required when using -LocalPkg."}}
-If ($LocalLGPO.IsPresent) {If ((!($LGPOPath)) -and (!($LGPOInstaled))){Throw "ERROR: -LGPOPath is required when using -LocalLGPO."}}
+If ($LocalLGPO.IsPresent) {If ((!($LGPOPath)) -and (!($LGPOInstalled))){Throw "ERROR: -LGPOPath is required when using -LocalLGPO."}}
 
 # Start Transcript Logging
 $Script:LogDir = "$env:SystemRoot\Logs\Configuration"
@@ -232,7 +232,7 @@ Function Set-BluetoothRadioStatus {
 Function Get-STIGLink {
     [CmdletBinding()]
     Param (
-        
+
         # Default DoD STIG GPO URL
         [Parameter(Mandatory = $false)]
         [string]$Url = 'https://public.cyber.mil/stigs/gpo',
@@ -250,7 +250,7 @@ Function Get-STIGLink {
     Process {
         try {
                     Write-Verbose "$($CmdletName): Checking DoD STIG site: $Url"
-                    
+
                     $STIGLink = Invoke-WebRequest -Uri $Url -UseBasicParsing |
                                 Select-Object -ExpandProperty Links |
                                 Where-Object { $_.href -like "*U_STIG_GPO_Package*" } |
@@ -454,7 +454,7 @@ Function Get-STIGs {
                 }
 
                 Copy-Item -Path $ZipPath -Destination $TempDir -Force
-                Write-Verbose "$($CmdletName): Copyed STIGs from: $ZipPath"
+                Write-Verbose "$($CmdletName): Copied STIGs from: $ZipPath"
                 $STIGZipPath = Join-Path -Path $TempDir -ChildPath ([System.IO.Path]::GetFileName($ZipPath))
             }
         }
@@ -543,7 +543,7 @@ $STIGdir = $null
 If ($LocalPkg.IsPresent) {
     If (Test-Path $LocalZipPath){Write-Output "Using local STIG package: $LocalZipPath"}
     Else {Throw "ERROR: LocalPath '$LocalZipPath' not found."}
-   
+
     $STIGdir = Get-STIGs -Source Local -ZipPath $LocalZipPath
 }
 Else {
@@ -558,7 +558,7 @@ If (!(test-path "$env:SystemRoot\System32\LGPO.exe")) {
     $fileLGPO = $null
     $outputDir = $null
     If (($LocalLGPO.IsPresent) -and ($LGPOPath)) {
-        
+
         If (Test-Path $LGPOPath){Write-Output "Using local LGPO.exe from $LGPOPath"}
         Else {Throw "ERROR: Local LGPO.exe '$LGPOPath' not found."}
         $fileLGPO = $LGPOPath
@@ -638,7 +638,7 @@ $matchPatterns += @(
 
 if($ApplyAppSTIGs){$matchPatterns += $ApplyAppSTIGs}
 
-# Combine patterns into a single regex (escaped if needed)
+# Combine patterns into a single regex
 $patternRegex = ($matchPatterns -join "|") -replace '\s+', ' '
 
 # Filter GPO folders based on match
@@ -647,14 +647,14 @@ $ApplicableGPOs = Get-ChildItem -Path $STIGdir | Where-Object { $_.Name -match $
 # Output for visibility (optional)
 $ApplicableGPOs | ForEach-Object { Write-Verbose "Matched GPO: $($_.Name)" }
 
-IF($TestInstall.IsPresent){$ApplicableGPOs.FullName | Set-GPOBackups -test}Else{$ApplicableGPOs.FullName | Set-GPOBackups}
+IF($TestGPOInstall.IsPresent){$ApplicableGPOs.FullName | Set-GPOBackups -test}Else{$ApplicableGPOs.FullName | Set-GPOBackups}
 
-#Apply Deltas to STIGs by alphabetical order numarical subfolders may be needed for corret precedence - Please Test
+#Apply Deltas to STIGs by alphabetical order; numerical subfolders may be needed for correct precedence - Please Test
 If($DeltaGPO.IsPresent){
-    IF($TestInstall.IsPresent){$DeltaPath | Set-GPOBackups -test}Else{$ApplicableGPOs.FullName | Set-GPOBackups}
+    IF($TestGPOInstall.IsPresent){$DeltaPath | Set-GPOBackups -test}Else{$DeltaPath | Set-GPOBackups}
     }
 
-#Set Aditional Windows 10 & 11 settings
+#Set Additional Windows 10 & 11 settings
 If($OS -like "Windows 1*"){
     #Disable Windows PowerShell V2
     Write-Output "V-220728: Disabling the PowerShell V2."
@@ -693,7 +693,7 @@ If($OS -like "Windows 1*"){
         # Determines bitlocker encrypted volumes
         $encryptedVolumes = (Get-BitLockerVolume | Where-Object {$_.ProtectionStatus -eq 'On'}).MountPoint
         if ($encryptedVolumes.Count -gt 0) {
-            Write-Log -EventId 1 -Message "Encrypted Drive Found. Suspending encryption temporarily."
+            Write-Output "Encrypted Drive Found. Suspending encryption temporarily."
             foreach ($volume in $encryptedVolumes) {
                 Suspend-BitLocker -MountPoint $volume -RebootCount 0
             }

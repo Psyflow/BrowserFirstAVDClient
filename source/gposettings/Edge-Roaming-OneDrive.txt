@@ -1,0 +1,30 @@
+; Settings roaming mode 'OneDrive': the Sync-UserSettings scheduled task saves and restores favorites and
+; selected settings through the user's OneDrive. Use in GCC High / DoD, where Edge sync is not available.
+
+; No cloud sync
+Computer
+Software\Policies\Microsoft\Edge
+SyncDisabled
+DWORD:1
+
+Computer
+Software\Policies\Microsoft\Edge
+ForceSync
+DELETE
+
+Computer
+Software\Policies\Microsoft\Edge\SyncTypesListDisabled
+*
+DELETEALLVALUES
+
+; Edge must be fully closed before favorites can be restored at sign-in, so it must not pre-launch
+; or keep running in the background.
+Computer
+Software\Policies\Microsoft\Edge
+StartupBoostEnabled
+DWORD:0
+
+Computer
+Software\Policies\Microsoft\Edge
+BackgroundModeEnabled
+DWORD:0

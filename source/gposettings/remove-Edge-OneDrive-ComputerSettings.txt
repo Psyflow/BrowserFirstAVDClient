@@ -1,0 +1,15 @@
+; Used by Remove-KioskSettings.ps1 to clear the Edge and OneDrive machine policies set by the kiosk install.
+Computer
+Software\Policies\Microsoft\Edge
+*
+DELETEALLVALUES
+
+Computer
+Software\Policies\Microsoft\Edge\SyncTypesListDisabled
+*
+DELETEALLVALUES
+
+Computer
+Software\Policies\Microsoft\OneDrive
+*
+DELETEALLVALUES
